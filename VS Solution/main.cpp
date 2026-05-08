@@ -1,5 +1,10 @@
 #include "resource.h"
 #include <Windows.h>
+#include <Windowsx.h>
+
+#pragma comment(linker,"/manifestdependency:\"type='win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'\"")
+
+import GDIUtility;
 
 #define MAX_LOADSTRING 100
 
@@ -10,12 +15,10 @@ ATOM MyRegisterClass(HINSTANCE hInstance);
 BOOL InitInstance(HINSTANCE, int);
 LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK About(HWND, UINT, WPARAM, LPARAM);
+INT_PTR CALLBACK TestDialog(HWND, UINT, WPARAM, LPARAM);
+GDIUT::CSplitter g_Splitter;
 
-int APIENTRY wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLine, int nCmdShow)
-{
-	UNREFERENCED_PARAMETER(hPrevInstance);
-	UNREFERENCED_PARAMETER(lpCmdLine);
-
+WPARAM RunMainWnd(HINSTANCE hInstance, int nCmdShow) {
 	LoadStringW(hInstance, IDS_APP_TITLE, szTitle, MAX_LOADSTRING);
 	LoadStringW(hInstance, IDC_UTILITY, szWindowClass, MAX_LOADSTRING);
 	MyRegisterClass(hInstance);
@@ -24,7 +27,7 @@ int APIENTRY wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmd
 		return FALSE;
 	}
 
-	const auto hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_UTILITY));
+	const auto hAccelTable = LoadAcceleratorsW(hInstance, MAKEINTRESOURCE(IDC_UTILITY));
 	MSG msg;
 	while (GetMessageW(&msg, nullptr, 0, 0)) {
 		if (!TranslateAcceleratorW(msg.hwnd, hAccelTable, &msg)) {
@@ -34,6 +37,14 @@ int APIENTRY wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmd
 	}
 
 	return (int)msg.wParam;
+}
+
+int APIENTRY wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLine, int nCmdShow)
+{
+	RunMainWnd(hInstance, nCmdShow);
+	//DialogBoxParamW(hInst, MAKEINTRESOURCE(IDD_TEST), nullptr, TestDialog, 0);
+
+	return 0;
 }
 
 ATOM MyRegisterClass(HINSTANCE hInstance)
@@ -76,16 +87,15 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	case WM_COMMAND:
 	{
 		int wmId = LOWORD(wParam);
-		// Parse the menu selections:
-		switch (wmId) {
+		switch (wmId) { //Parse the menu selections:
 		case IDM_ABOUT:
-			DialogBox(hInst, MAKEINTRESOURCE(IDD_ABOUTBOX), hWnd, About);
+			DialogBoxParamW(hInst, MAKEINTRESOURCE(IDD_ABOUTBOX), hWnd, About, 0);
 			break;
 		case IDM_EXIT:
 			DestroyWindow(hWnd);
 			break;
 		default:
-			return DefWindowProc(hWnd, message, wParam, lParam);
+			return DefWindowProcW(hWnd, message, wParam, lParam);
 		}
 	}
 	break;
@@ -101,16 +111,42 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		PostQuitMessage(0);
 		break;
 	default:
-		return DefWindowProc(hWnd, message, wParam, lParam);
+		return DefWindowProcW(hWnd, message, wParam, lParam);
 	}
 	return 0;
 }
 
 INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 {
-	UNREFERENCED_PARAMETER(lParam);
 	switch (message) {
 	case WM_INITDIALOG:
+		return (INT_PTR)TRUE;
+	case WM_COMMAND:
+		if (LOWORD(wParam) == IDOK || LOWORD(wParam) == IDCANCEL) {
+			EndDialog(hDlg, LOWORD(wParam));
+			return (INT_PTR)TRUE;
+		}
+		break;
+	}
+	return (INT_PTR)FALSE;
+}
+
+INT_PTR CALLBACK TestDialog(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
+{
+	switch (message) {
+	case WM_INITDIALOG:
+		g_Splitter.Initialize(hDlg, IDC_LIST, GDIUT::CSplitter::EAnchorSide::SIDE_LEFT);
+		g_Splitter.SetMinMaxEdge(30, 400);
+		g_Splitter.AddItem(IDC_BUTTON_TEST, true);
+		return (INT_PTR)TRUE;
+	case WM_LBUTTONDOWN:
+		g_Splitter.WMLButtonDown(GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
+		return (INT_PTR)TRUE;
+	case WM_LBUTTONUP:
+		g_Splitter.WMLButtonUp();
+		return (INT_PTR)TRUE;
+	case WM_MOUSEMOVE:
+		g_Splitter.WMMouseMove(GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
 		return (INT_PTR)TRUE;
 	case WM_COMMAND:
 		if (LOWORD(wParam) == IDOK || LOWORD(wParam) == IDCANCEL) {

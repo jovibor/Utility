@@ -85,42 +85,312 @@ export namespace GDIUT { //Windows GDI related stuff.
 		return 0;
 	}
 
-	template<typename TCom> requires requires(TCom* pTCom) { pTCom->AddRef(); pTCom->Release(); }
-	class comptr {
+	class CPoint final : public POINT {
 	public:
-		comptr() = default;
-		comptr(TCom* pTCom) : m_pTCom(pTCom) { }
-		comptr(const comptr<TCom>& rhs) : m_pTCom(rhs.get()) { safe_addref(); }
-		~comptr() { safe_release(); }
-		operator TCom*()const { return get(); }
-		operator TCom**() { return get_addr(); }
-		operator IUnknown**() { return reinterpret_cast<IUnknown**>(get_addr()); }
-		operator void**() { return reinterpret_cast<void**>(get_addr()); }
-		auto operator->()const->TCom* { return get(); }
-		auto operator=(const comptr<TCom>& rhs)->comptr& {
-			if (this != &rhs) {
-				safe_release();	m_pTCom = rhs.get(); safe_addref();
-			}
-			return *this;
-		}
-		auto operator=(TCom* pRHS)->comptr& {
-			if (get() != pRHS) {
-				if (get() != nullptr) { get()->Release(); }
-				m_pTCom = pRHS;
-			}
-			return *this;
-		}
-		[[nodiscard]] bool operator==(const comptr<TCom>& rhs)const { return get() == rhs.get(); }
-		[[nodiscard]] bool operator==(const TCom* pRHS)const { return get() == pRHS; }
-		[[nodiscard]] explicit operator bool() { return get() != nullptr; }
-		[[nodiscard]] explicit operator bool()const { return get() != nullptr; }
-		[[nodiscard]] auto get()const -> TCom* { return m_pTCom; }
-		[[nodiscard]] auto get_addr() -> TCom** { return &m_pTCom; }
-		void safe_release() { if (get() != nullptr) { get()->Release(); m_pTCom = nullptr; } }
-		void safe_addref() { if (get() != nullptr) { get()->AddRef(); } }
-	private:
-		TCom* m_pTCom { };
+		CPoint() : POINT { } { }
+		CPoint(POINT pt) : POINT { pt } { }
+		CPoint(int x, int y) : POINT { .x { x }, .y { y } } { }
+		~CPoint() = default;
+		operator LPPOINT() { return this; }
+		operator const POINT*()const { return this; }
+		bool operator==(CPoint rhs)const { return x == rhs.x && y == rhs.y; }
+		bool operator==(POINT pt)const { return x == pt.x && y == pt.y; }
+		friend bool operator==(POINT pt, CPoint rhs) { return rhs == pt; }
+		CPoint operator+(POINT pt)const { return { x + pt.x, y + pt.y }; }
+		CPoint operator-(POINT pt)const { return { x - pt.x, y - pt.y }; }
+		void Offset(int iX, int iY) { x += iX; y += iY; }
+		void Offset(POINT pt) { Offset(pt.x, pt.y); }
 	};
+
+	class CRect final : public RECT {
+	public:
+		CRect() : RECT { } { }
+		CRect(int iLeft, int iTop, int iRight, int iBottom) : RECT { .left { iLeft }, .top { iTop },
+			.right { iRight }, .bottom { iBottom } } { }
+		CRect(RECT rc) { ::CopyRect(this, &rc); }
+		CRect(LPCRECT pRC) { ::CopyRect(this, pRC); }
+		CRect(POINT pt, SIZE size) : RECT { .left { pt.x }, .top { pt.y }, .right { pt.x + size.cx },
+			.bottom { pt.y + size.cy } } { }
+		CRect(POINT topLeft, POINT botRight) : RECT { .left { topLeft.x }, .top { topLeft.y },
+			.right { botRight.x }, .bottom { botRight.y } } { }
+		~CRect() = default;
+		operator LPRECT() { return this; }
+		operator LPCRECT()const { return this; }
+		bool operator==(CRect rhs)const { return ::EqualRect(this, rhs); }
+		bool operator==(RECT rc)const { return ::EqualRect(this, &rc); }
+		friend bool operator==(RECT rc, CRect rhs) { return rhs == rc; }
+		CRect& operator=(RECT rc) { ::CopyRect(this, &rc); return *this; }
+		[[nodiscard]] auto BottomRight()const -> CPoint { return { { .x { right }, .y { bottom } } }; };
+		void DeflateRect(int x, int y) { ::InflateRect(this, -x, -y); }
+		void DeflateRect(SIZE size) { ::InflateRect(this, -size.cx, -size.cy); }
+		void DeflateRect(LPCRECT pRC) { left += pRC->left; top += pRC->top; right -= pRC->right; bottom -= pRC->bottom; }
+		void DeflateRect(int l, int t, int r, int b) { left += l; top += t; right -= r; bottom -= b; }
+		[[nodiscard]] int Height()const { return bottom - top; }
+		[[nodiscard]] bool IsRectEmpty()const { return ::IsRectEmpty(this); }
+		[[nodiscard]] bool IsRectNull()const { return (left == 0 && right == 0 && top == 0 && bottom == 0); }
+		void OffsetRect(int x, int y) { ::OffsetRect(this, x, y); }
+		void OffsetRect(POINT pt) { ::OffsetRect(this, pt.x, pt.y); }
+		[[nodiscard]] bool PtInRect(POINT pt)const { return ::PtInRect(this, pt); }
+		void SetRect(int x1, int y1, int x2, int y2) { ::SetRect(this, x1, y1, x2, y2); }
+		void SetRectEmpty() { ::SetRectEmpty(this); }
+		[[nodiscard]] auto TopLeft()const -> CPoint { return { { .x { left }, .y { top } } }; };
+		[[nodiscard]] int Width()const { return right - left; }
+	};
+
+	class CSplitter final {
+	public:
+		enum class EAnchorSide : std::uint8_t { SIDE_LEFT, SIDE_TOP, SIDE_RIGHT, SIDE_BOTTOM };
+		void AddItem(HWND hWndItem, bool fIsResize);
+		void AddItem(int iItemID, bool fIsResize);
+		void Initialize(HWND hWndHost, HWND hWndAnchor, EAnchorSide eAnchorSide, std::uint32_t u32Radius = 15);
+		void Initialize(HWND hWndHost, int iAnchorID, EAnchorSide eAnchorSide, std::uint32_t u32Radius = 15);
+		[[nodiscard]] bool IsSplitting()const; //Is splitting is going on atm.
+		void SetMinMaxEdge(int iMinEdge, int iMaxEdge);
+
+		//These WM* handlers must be placed into the respective host window handlers.
+		void WMMouseMove(int iX, int iY);
+		void WMLButtonDown(int iX, int iY);
+		void WMLButtonUp();
+	private:
+		[[nodiscard]] bool IsLock()const;
+		void Lock();
+		void Unlock();
+	private:
+		inline static CSplitter* m_pSplitterCurrentlyInUse { }; //The currently active splitter.
+		struct ItemData {
+			HWND hWnd { };      //Item window.
+			bool fIsResize { }; //Is resize or move.
+		};
+		std::vector<ItemData> m_vecItems; //All items to resize/move.
+		HWND m_hWndHost { };   //Host window.
+		HWND m_hWndAnchor { }; //Anchor window, to work as a splitter basepoint.
+		std::uint32_t m_u32Radius { }; //Radius from the anchor-window edge, where cursor turns into splitter (<->).
+		POINT m_ptCurr;     //Current cursor point under the splitter area.
+		int m_iMinEdge { }; //Minimum distance from the left (or top) side to stop splitting.
+		int m_iMaxEdge { 0x7FFFFFFF }; //Maximum distance from the left (or top) side to stop splitting.
+		EAnchorSide m_eAnchorSide;
+		bool m_fCurInSplitter { }; //Is cursor under the splitter area.
+		bool m_fSplitting { };     //Left mouse is down for resize atm.
+	};
+
+	void CSplitter::AddItem(HWND hWndItem, bool fIsResize) {
+		assert(hWndItem != nullptr);
+		if (hWndItem == nullptr)
+			return;
+
+		m_vecItems.emplace_back(hWndItem, fIsResize);
+	}
+
+	void CSplitter::AddItem(int iItemID, bool fIsResize) {
+		AddItem(::GetDlgItem(m_hWndHost, iItemID), fIsResize);
+	}
+
+	void CSplitter::Initialize(HWND hWndHost, HWND hWndAnchor, EAnchorSide eAnchorSide, std::uint32_t u32Radius) {
+		assert(hWndHost != nullptr);
+		assert(hWndAnchor != nullptr);
+		m_hWndHost = hWndHost;
+		m_hWndAnchor = hWndAnchor;
+		m_eAnchorSide = eAnchorSide;
+		m_u32Radius = u32Radius;
+	}
+
+	void CSplitter::Initialize(HWND hWndHost, int iAnchorID, EAnchorSide eAnchorSide, std::uint32_t u32SplitterWidth) {
+		Initialize(hWndHost, ::GetDlgItem(hWndHost, iAnchorID), eAnchorSide, u32SplitterWidth);
+	}
+
+	bool CSplitter::IsSplitting()const {
+		return m_fSplitting;
+	}
+
+	void CSplitter::SetMinMaxEdge(int iMinEdge, int iMaxEdge) {
+		m_iMinEdge = iMinEdge;
+		m_iMaxEdge = iMaxEdge;
+	}
+
+	void CSplitter::WMLButtonDown(int iX, int iY) {
+		if (IsLock()) {
+			return;
+		}
+
+		if (m_fCurInSplitter) {
+			m_ptCurr = POINT(iX, iY);
+			m_fSplitting = true;
+			Lock();
+			::SetCapture(m_hWndHost);
+		}
+	}
+
+	void CSplitter::WMLButtonUp() {
+		if (IsLock()) {
+			return;
+		}
+
+		if (m_fSplitting) {
+			m_fSplitting = false;
+			::ReleaseCapture();
+			Unlock();
+		}
+	}
+
+	void CSplitter::WMMouseMove(int iX, int iY) {
+		if (IsLock()) {
+			return;
+		}
+
+		const POINT pt { .x { iX }, .y { iY } };
+		CRect rcAnchorClient;
+		::GetWindowRect(m_hWndAnchor, &rcAnchorClient);
+		::ScreenToClient(m_hWndHost, reinterpret_cast<LPPOINT>(&rcAnchorClient));
+		::ScreenToClient(m_hWndHost, reinterpret_cast<LPPOINT>(&rcAnchorClient) + 1);
+		using enum EAnchorSide;
+
+		if (m_fSplitting) {
+			const auto iOffsetX = iX - m_ptCurr.x;
+			const auto iOffsetY = iY - m_ptCurr.y;
+			bool fAllowSplit { };
+
+			switch (m_eAnchorSide) {
+			case SIDE_LEFT:
+				rcAnchorClient.left += iOffsetX;
+				fAllowSplit = (rcAnchorClient.left >= m_iMinEdge) && (rcAnchorClient.left <= m_iMaxEdge);
+				break;
+			case SIDE_TOP:
+				rcAnchorClient.top += iOffsetY;
+				fAllowSplit = (rcAnchorClient.top >= m_iMinEdge) && (rcAnchorClient.top <= m_iMaxEdge);
+				break;
+			case SIDE_RIGHT:
+				rcAnchorClient.right += iOffsetX;
+				fAllowSplit = (rcAnchorClient.right >= m_iMinEdge) && (rcAnchorClient.right <= m_iMaxEdge);
+				break;
+			case SIDE_BOTTOM:
+				rcAnchorClient.bottom += iOffsetY;
+				fAllowSplit = (rcAnchorClient.bottom >= m_iMinEdge) && (rcAnchorClient.bottom <= m_iMaxEdge);
+				break;
+			default:
+				break;
+			}
+
+			if (fAllowSplit) {
+				auto hdwp = ::BeginDeferWindowPos(static_cast<int>(m_vecItems.size() + 1)); //+1 is the m_hWndAnchor itself.
+				hdwp = ::DeferWindowPos(hdwp, m_hWndAnchor, nullptr, rcAnchorClient.left, rcAnchorClient.top,
+					rcAnchorClient.Width(), rcAnchorClient.Height(), SWP_NOACTIVATE | SWP_NOZORDER);
+
+				for (const auto& [hWnd, fIsResize] : m_vecItems) {
+					CRect rcWnd;
+					::GetWindowRect(hWnd, &rcWnd);
+					::ScreenToClient(m_hWndHost, reinterpret_cast<LPPOINT>(&rcWnd));
+					::ScreenToClient(m_hWndHost, reinterpret_cast<LPPOINT>(&rcWnd) + 1);
+
+					switch (m_eAnchorSide) {
+					case SIDE_LEFT:
+						if (fIsResize) {
+							rcWnd.right += iOffsetX;
+						}
+						else {
+							rcWnd.OffsetRect(iOffsetX, 0);
+						}
+						break;
+					case SIDE_TOP:
+						if (fIsResize) {
+							rcWnd.bottom += iOffsetY;
+						}
+						else {
+							rcWnd.OffsetRect(0, iOffsetY);
+						}
+						break;
+					case SIDE_RIGHT:
+						if (fIsResize) {
+							rcWnd.left += iOffsetX;
+						}
+						else {
+							rcWnd.OffsetRect(iOffsetX, 0);
+						}
+						break;
+					case SIDE_BOTTOM:
+						if (fIsResize) {
+							rcWnd.top += iOffsetY;
+						}
+						else {
+							rcWnd.OffsetRect(0, iOffsetY);
+						}
+						break;
+					default:
+						break;
+					}
+
+					hdwp = ::DeferWindowPos(hdwp, hWnd, nullptr, rcWnd.left, rcWnd.top,
+								rcWnd.Width(), rcWnd.Height(), SWP_NOACTIVATE | SWP_NOZORDER);
+				}
+
+				m_ptCurr = POINT(iX, iY);
+				::EndDeferWindowPos(hdwp);
+			}
+		}
+		else {
+			CRect rcSplitter;
+			bool fCursorWE { };
+			switch (m_eAnchorSide) {
+			case SIDE_LEFT:
+				rcSplitter.SetRect(rcAnchorClient.left - m_u32Radius, rcAnchorClient.top,
+				rcAnchorClient.left + m_u32Radius, rcAnchorClient.bottom);
+				fCursorWE = true;
+				break;
+			case SIDE_TOP:
+				rcSplitter.SetRect(rcAnchorClient.left, rcAnchorClient.top - m_u32Radius,
+					rcAnchorClient.right, rcAnchorClient.top + m_u32Radius);
+				fCursorWE = false;
+				break;
+			case SIDE_RIGHT:
+				rcSplitter.SetRect(rcAnchorClient.right - m_u32Radius, rcAnchorClient.top,
+					rcAnchorClient.right + m_u32Radius, rcAnchorClient.bottom);
+				fCursorWE = true;
+				break;
+			case SIDE_BOTTOM:
+				rcSplitter.SetRect(rcAnchorClient.left, rcAnchorClient.bottom - m_u32Radius,
+					rcAnchorClient.right, rcAnchorClient.bottom + m_u32Radius);
+				fCursorWE = false;
+				break;
+			default:
+				break;
+			}
+
+			if (rcSplitter.PtInRect(pt)) {
+				static const auto hCurResizeWE =
+					static_cast<HCURSOR>(::LoadImageW(nullptr, IDC_SIZEWE, IMAGE_CURSOR, 0, 0, LR_SHARED));
+				static const auto hCurResizeNS =
+					static_cast<HCURSOR>(::LoadImageW(nullptr, IDC_SIZENS, IMAGE_CURSOR, 0, 0, LR_SHARED));
+				m_fCurInSplitter = true;
+
+				//The cursor must be set here and not in the WM_SETCURSOR handler,
+				//because the WM_SETCURSOR message doesn't fire when in SetCapture mode.
+				::SetCursor(fCursorWE ? hCurResizeWE : hCurResizeNS);
+				::SetCapture(m_hWndHost);
+			}
+			else {
+				if (m_fCurInSplitter) {
+					m_fCurInSplitter = false;
+					::ReleaseCapture();
+				}
+			}
+		}
+	}
+
+	//Private methods.
+
+	bool CSplitter::IsLock()const {
+		//Locking mechanism is needed to avoid Set/ReleaseCapture interference 
+		//between two or more splitters in the same window.
+		return m_pSplitterCurrentlyInUse != nullptr && m_pSplitterCurrentlyInUse != this;
+	}
+
+	void CSplitter::Lock() {
+		m_pSplitterCurrentlyInUse = this;
+	}
+
+	void CSplitter::Unlock() {
+		m_pSplitterCurrentlyInUse = nullptr;
+	}
+
 
 	class CDynLayout final {
 	public:
@@ -137,8 +407,8 @@ export namespace GDIUT { //Windows GDI related stuff.
 		void AddItem(int iIDItem, MoveRatio move, SizeRatio size);
 		void AddItem(HWND hWndItem, MoveRatio move, SizeRatio size);
 		void Enable(bool fTrack);
-		bool LoadFromResource(HINSTANCE hInstRes, const wchar_t* pwszNameResource);
-		bool LoadFromResource(HINSTANCE hInstRes, UINT uNameResource);
+		bool LoadFromResource(HINSTANCE hInstRes, const wchar_t* pwszResName);
+		bool LoadFromResource(HINSTANCE hInstRes, UINT uResID);
 		void OnSize(int iWidth, int iHeight)const; //Should be hooked into the host window's WM_SIZE handler.
 		void RemoveAll() { m_vecItems.clear(); }
 		void SetHost(HWND hWnd) { assert(hWnd != nullptr); m_hWndHost = hWnd; }
@@ -207,16 +477,16 @@ export namespace GDIUT { //Windows GDI related stuff.
 		}
 	}
 
-	bool CDynLayout::LoadFromResource(HINSTANCE hInstRes, const wchar_t* pwszNameResource) {
-		assert(pwszNameResource != nullptr);
-		if (pwszNameResource == nullptr)
+	bool CDynLayout::LoadFromResource(HINSTANCE hInstRes, const wchar_t* pwszResName) {
+		assert(pwszResName != nullptr);
+		if (pwszResName == nullptr)
 			return false;
 
 		assert(m_hWndHost != nullptr);
 		if (m_hWndHost == nullptr)
 			return false;
 
-		const auto hDlgLayout = ::FindResourceW(hInstRes, pwszNameResource, L"AFX_DIALOG_LAYOUT");
+		const auto hDlgLayout = ::FindResourceW(hInstRes, pwszResName, L"AFX_DIALOG_LAYOUT");
 		if (hDlgLayout == nullptr) { //No such resource found in the hInstRes.
 			return false;
 		}
@@ -256,8 +526,8 @@ export namespace GDIUT { //Windows GDI related stuff.
 		return true;
 	}
 
-	bool CDynLayout::LoadFromResource(HINSTANCE hInstRes, UINT uNameResource) {
-		return LoadFromResource(hInstRes, MAKEINTRESOURCEW(uNameResource));
+	bool CDynLayout::LoadFromResource(HINSTANCE hInstRes, UINT uResID) {
+		return LoadFromResource(hInstRes, MAKEINTRESOURCEW(uResID));
 	}
 
 	void CDynLayout::OnSize(int iWidth, int iHeight)const {
@@ -281,58 +551,6 @@ export namespace GDIUT { //Windows GDI related stuff.
 		}
 		::EndDeferWindowPos(hDWP);
 	}
-
-	class CPoint final : public POINT {
-	public:
-		CPoint() : POINT { } { }
-		CPoint(POINT pt) : POINT { pt } { }
-		CPoint(int x, int y) : POINT { .x { x }, .y { y } } { }
-		~CPoint() = default;
-		operator LPPOINT() { return this; }
-		operator const POINT*()const { return this; }
-		bool operator==(CPoint rhs)const { return x == rhs.x && y == rhs.y; }
-		bool operator==(POINT pt)const { return x == pt.x && y == pt.y; }
-		friend bool operator==(POINT pt, CPoint rhs) { return rhs == pt; }
-		CPoint operator+(POINT pt)const { return { x + pt.x, y + pt.y }; }
-		CPoint operator-(POINT pt)const { return { x - pt.x, y - pt.y }; }
-		void Offset(int iX, int iY) { x += iX; y += iY; }
-		void Offset(POINT pt) { Offset(pt.x, pt.y); }
-	};
-
-	class CRect final : public RECT {
-	public:
-		CRect() : RECT { } { }
-		CRect(int iLeft, int iTop, int iRight, int iBottom) : RECT { .left { iLeft }, .top { iTop },
-			.right { iRight }, .bottom { iBottom } } { }
-		CRect(RECT rc) { ::CopyRect(this, &rc); }
-		CRect(LPCRECT pRC) { ::CopyRect(this, pRC); }
-		CRect(POINT pt, SIZE size) : RECT { .left { pt.x }, .top { pt.y }, .right { pt.x + size.cx },
-			.bottom { pt.y + size.cy } } { }
-		CRect(POINT topLeft, POINT botRight) : RECT { .left { topLeft.x }, .top { topLeft.y },
-			.right { botRight.x }, .bottom { botRight.y } } { }
-		~CRect() = default;
-		operator LPRECT() { return this; }
-		operator LPCRECT()const { return this; }
-		bool operator==(CRect rhs)const { return ::EqualRect(this, rhs); }
-		bool operator==(RECT rc)const { return ::EqualRect(this, &rc); }
-		friend bool operator==(RECT rc, CRect rhs) { return rhs == rc; }
-		CRect& operator=(RECT rc) { ::CopyRect(this, &rc); return *this; }
-		[[nodiscard]] auto BottomRight()const -> CPoint { return { { .x { right }, .y { bottom } } }; };
-		void DeflateRect(int x, int y) { ::InflateRect(this, -x, -y); }
-		void DeflateRect(SIZE size) { ::InflateRect(this, -size.cx, -size.cy); }
-		void DeflateRect(LPCRECT pRC) { left += pRC->left; top += pRC->top; right -= pRC->right; bottom -= pRC->bottom; }
-		void DeflateRect(int l, int t, int r, int b) { left += l; top += t; right -= r; bottom -= b; }
-		[[nodiscard]] int Height()const { return bottom - top; }
-		[[nodiscard]] bool IsRectEmpty()const { return ::IsRectEmpty(this); }
-		[[nodiscard]] bool IsRectNull()const { return (left == 0 && right == 0 && top == 0 && bottom == 0); }
-		void OffsetRect(int x, int y) { ::OffsetRect(this, x, y); }
-		void OffsetRect(POINT pt) { ::OffsetRect(this, pt.x, pt.y); }
-		[[nodiscard]] bool PtInRect(POINT pt)const { return ::PtInRect(this, pt); }
-		void SetRect(int x1, int y1, int x2, int y2) { ::SetRect(this, x1, y1, x2, y2); }
-		void SetRectEmpty() { ::SetRectEmpty(this); }
-		[[nodiscard]] auto TopLeft()const -> CPoint { return { { .x { left }, .y { top } } }; };
-		[[nodiscard]] int Width()const { return right - left; }
-	};
 
 	class CDC {
 	public:
@@ -858,7 +1076,7 @@ export namespace GDIUT { //Windows GDI related stuff.
 		std::uint16_t m_u16SizeHeightItem { };
 	};
 
-	auto CMenuColor::ProcessMsg(const MSG& msg)->LRESULT
+	auto CMenuColor::ProcessMsg(const MSG & msg)->LRESULT
 	{
 		switch (msg.message) {
 		case WM_COMMAND:
@@ -877,7 +1095,7 @@ export namespace GDIUT { //Windows GDI related stuff.
 		}
 	}
 
-	void CMenuColor::SetColors(const MENUCOLORS& clrs)
+	void CMenuColor::SetColors(const MENUCOLORS & clrs)
 	{
 		m_clrs = clrs;
 	}
@@ -998,7 +1216,7 @@ export namespace GDIUT { //Windows GDI related stuff.
 		}
 	}
 
-	auto CMenuColor::OnDrawItem(const MSG& msg)->LRESULT
+	auto CMenuColor::OnDrawItem(const MSG & msg)->LRESULT
 	{
 		const auto pDIS = reinterpret_cast<LPDRAWITEMSTRUCT>(msg.lParam);
 		const auto pII = reinterpret_cast<ITEMINFO*>(pDIS->itemData);
@@ -1072,7 +1290,7 @@ export namespace GDIUT { //Windows GDI related stuff.
 		return TRUE;
 	}
 
-	auto CMenuColor::OnMeasureItem(const MSG& msg)->LRESULT
+	auto CMenuColor::OnMeasureItem(const MSG & msg)->LRESULT
 	{
 		const auto pMIS = reinterpret_cast<LPMEASUREITEMSTRUCT>(msg.lParam);
 		const auto pII = reinterpret_cast<ITEMINFO*>(pMIS->itemData);
@@ -1229,7 +1447,44 @@ export namespace GDIUT { //Windows GDI related stuff.
 		return hIcon;
 	}
 
-	[[nodiscard]] auto SVGToHBITMAP(IStream* pStream, int iWidth, int iHeight, ID2D1Factory* pD2DFactory = nullptr) -> HBITMAP {
+	template<typename TCom> requires requires(TCom * pTCom) { pTCom->AddRef(); pTCom->Release(); }
+	class comptr {
+	public:
+		comptr() = default;
+		comptr(TCom* pTCom) : m_pTCom(pTCom) { }
+		comptr(const comptr<TCom>& rhs) : m_pTCom(rhs.get()) { safe_addref(); }
+		~comptr() { safe_release(); }
+		operator TCom*()const { return get(); }
+		operator TCom**() { return get_addr(); }
+		operator IUnknown**() { return reinterpret_cast<IUnknown**>(get_addr()); }
+		operator void**() { return reinterpret_cast<void**>(get_addr()); }
+		auto operator->()const->TCom* { return get(); }
+		auto operator=(const comptr<TCom>& rhs)->comptr& {
+			if (this != &rhs) {
+				safe_release();	m_pTCom = rhs.get(); safe_addref();
+			}
+			return *this;
+		}
+		auto operator=(TCom* pRHS)->comptr& {
+			if (get() != pRHS) {
+				if (get() != nullptr) { get()->Release(); }
+				m_pTCom = pRHS;
+			}
+			return *this;
+		}
+		[[nodiscard]] bool operator==(const comptr<TCom>& rhs)const { return get() == rhs.get(); }
+		[[nodiscard]] bool operator==(const TCom* pRHS)const { return get() == pRHS; }
+		[[nodiscard]] explicit operator bool() { return get() != nullptr; }
+		[[nodiscard]] explicit operator bool()const { return get() != nullptr; }
+		[[nodiscard]] auto get()const -> TCom* { return m_pTCom; }
+		[[nodiscard]] auto get_addr() -> TCom** { return &m_pTCom; }
+		void safe_release() { if (get() != nullptr) { get()->Release(); m_pTCom = nullptr; } }
+		void safe_addref() { if (get() != nullptr) { get()->AddRef(); } }
+	private:
+		TCom* m_pTCom { };
+	};
+
+	[[nodiscard]] auto SVGToHBITMAP(IStream * pStream, int iWidth, int iHeight, ID2D1Factory * pD2DFactory = nullptr) -> HBITMAP {
 		//The "height" and "width" svg root attributes <svg ...height="30" width="30"...> must be removed from the svg file,
 		//to scale image correctly with the Direct2D. Otherwise, ID2D1SvgDocument will use these attributes for scaling,
 		//not its own viewport size.
@@ -1292,7 +1547,7 @@ export namespace GDIUT { //Windows GDI related stuff.
 	}
 
 	[[nodiscard]] auto SVGToHBITMAP(UINT uIDRes, int iWidth, int iHeight, HINSTANCE hInstRes = nullptr,
-		LPCWSTR pwszTypeRes = L"SVG", ID2D1Factory* pD2DFactory = nullptr) -> HBITMAP {
+		LPCWSTR pwszTypeRes = L"SVG", ID2D1Factory * pD2DFactory = nullptr) -> HBITMAP {
 		const auto hRCSVG = ::FindResourceW(hInstRes, MAKEINTRESOURCEW(uIDRes), pwszTypeRes);
 		assert(hRCSVG != nullptr);
 		if (hRCSVG == nullptr)
