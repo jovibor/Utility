@@ -142,10 +142,10 @@ export namespace GDIUT { //Windows GDI related stuff.
 		enum class EAnchorSide : std::uint8_t { SIDE_LEFT, SIDE_TOP, SIDE_RIGHT, SIDE_BOTTOM };
 		void AddItem(HWND hWndItem, bool fIsResize);
 		void AddItem(int iItemID, bool fIsResize);
-		void Initialize(HWND hWndHost, HWND hWndAnchor, EAnchorSide eAnchorSide, std::uint32_t u32Radius = 15);
-		void Initialize(HWND hWndHost, int iAnchorID, EAnchorSide eAnchorSide, std::uint32_t u32Radius = 15);
+		void Initialize(HWND hWndHost, HWND hWndAnchor, EAnchorSide eAnchorSide, std::uint32_t u32SplitterWidth = 30);
+		void Initialize(HWND hWndHost, int iAnchorID, EAnchorSide eAnchorSide, std::uint32_t u32SplitterWidth = 30);
 		[[nodiscard]] bool IsSplitting()const; //Is splitting is going on atm.
-		void SetMinMaxEdge(int iMinEdge, int iMaxEdge);
+		void SetEdges(int iMinEdge, int iMaxEdge);
 
 		//These WM* handlers must be placed into the respective host window handlers.
 		void WMMouseMove(int iX, int iY);
@@ -164,8 +164,8 @@ export namespace GDIUT { //Windows GDI related stuff.
 		std::vector<ItemData> m_vecItems; //All items to resize/move.
 		HWND m_hWndHost { };   //Host window.
 		HWND m_hWndAnchor { }; //Anchor window, to work as a splitter basepoint.
-		std::uint32_t m_u32Radius { }; //Radius from the anchor-window edge, where cursor turns into splitter (<->).
-		POINT m_ptCurr;     //Current cursor point under the splitter area.
+		std::uint32_t m_u32WidthHalf { }; //Distance from the anchor-window's edge, where a cursor turns into a splitter (<->).
+		POINT m_ptCurr;     //Current cursor coordinates under the splitter area.
 		int m_iMinEdge { }; //Minimum distance from the left (or top) side to stop splitting.
 		int m_iMaxEdge { 0x7FFFFFFF }; //Maximum distance from the left (or top) side to stop splitting.
 		EAnchorSide m_eAnchorSide;
@@ -185,13 +185,13 @@ export namespace GDIUT { //Windows GDI related stuff.
 		AddItem(::GetDlgItem(m_hWndHost, iItemID), fIsResize);
 	}
 
-	void CSplitter::Initialize(HWND hWndHost, HWND hWndAnchor, EAnchorSide eAnchorSide, std::uint32_t u32Radius) {
+	void CSplitter::Initialize(HWND hWndHost, HWND hWndAnchor, EAnchorSide eAnchorSide, std::uint32_t u32SplitterWidth) {
 		assert(hWndHost != nullptr);
 		assert(hWndAnchor != nullptr);
 		m_hWndHost = hWndHost;
 		m_hWndAnchor = hWndAnchor;
 		m_eAnchorSide = eAnchorSide;
-		m_u32Radius = u32Radius;
+		m_u32WidthHalf = u32SplitterWidth / 2;
 	}
 
 	void CSplitter::Initialize(HWND hWndHost, int iAnchorID, EAnchorSide eAnchorSide, std::uint32_t u32SplitterWidth) {
@@ -202,7 +202,7 @@ export namespace GDIUT { //Windows GDI related stuff.
 		return m_fSplitting;
 	}
 
-	void CSplitter::SetMinMaxEdge(int iMinEdge, int iMaxEdge) {
+	void CSplitter::SetEdges(int iMinEdge, int iMaxEdge) {
 		m_iMinEdge = iMinEdge;
 		m_iMaxEdge = iMaxEdge;
 	}
@@ -331,23 +331,23 @@ export namespace GDIUT { //Windows GDI related stuff.
 			bool fCursorWE { };
 			switch (m_eAnchorSide) {
 			case SIDE_LEFT:
-				rcSplitter.SetRect(rcAnchorClient.left - m_u32Radius, rcAnchorClient.top,
-				rcAnchorClient.left + m_u32Radius, rcAnchorClient.bottom);
+				rcSplitter.SetRect(rcAnchorClient.left - m_u32WidthHalf, rcAnchorClient.top,
+				rcAnchorClient.left + m_u32WidthHalf, rcAnchorClient.bottom);
 				fCursorWE = true;
 				break;
 			case SIDE_TOP:
-				rcSplitter.SetRect(rcAnchorClient.left, rcAnchorClient.top - m_u32Radius,
-					rcAnchorClient.right, rcAnchorClient.top + m_u32Radius);
+				rcSplitter.SetRect(rcAnchorClient.left, rcAnchorClient.top - m_u32WidthHalf,
+					rcAnchorClient.right, rcAnchorClient.top + m_u32WidthHalf);
 				fCursorWE = false;
 				break;
 			case SIDE_RIGHT:
-				rcSplitter.SetRect(rcAnchorClient.right - m_u32Radius, rcAnchorClient.top,
-					rcAnchorClient.right + m_u32Radius, rcAnchorClient.bottom);
+				rcSplitter.SetRect(rcAnchorClient.right - m_u32WidthHalf, rcAnchorClient.top,
+					rcAnchorClient.right + m_u32WidthHalf, rcAnchorClient.bottom);
 				fCursorWE = true;
 				break;
 			case SIDE_BOTTOM:
-				rcSplitter.SetRect(rcAnchorClient.left, rcAnchorClient.bottom - m_u32Radius,
-					rcAnchorClient.right, rcAnchorClient.bottom + m_u32Radius);
+				rcSplitter.SetRect(rcAnchorClient.left, rcAnchorClient.bottom - m_u32WidthHalf,
+					rcAnchorClient.right, rcAnchorClient.bottom + m_u32WidthHalf);
 				fCursorWE = false;
 				break;
 			default:
@@ -391,7 +391,6 @@ export namespace GDIUT { //Windows GDI related stuff.
 		m_pSplitterCurrentlyInUse = nullptr;
 	}
 
-
 	class CDynLayout final {
 	public:
 		//Ratio settings, for how much to move or to resize child item when parent is resized.
@@ -404,7 +403,7 @@ export namespace GDIUT { //Windows GDI related stuff.
 
 		CDynLayout() = default;
 		CDynLayout(HWND hWndHost) : m_hWndHost(hWndHost) { }
-		void AddItem(int iIDItem, MoveRatio move, SizeRatio size);
+		void AddItem(int iItemID, MoveRatio move, SizeRatio size);
 		void AddItem(HWND hWndItem, MoveRatio move, SizeRatio size);
 		void Enable(bool fTrack);
 		bool LoadFromResource(HINSTANCE hInstRes, const wchar_t* pwszResName);
@@ -412,6 +411,8 @@ export namespace GDIUT { //Windows GDI related stuff.
 		void OnSize(int iWidth, int iHeight)const; //Should be hooked into the host window's WM_SIZE handler.
 		void RemoveAll() { m_vecItems.clear(); }
 		void SetHost(HWND hWnd) { assert(hWnd != nullptr); m_hWndHost = hWnd; }
+		void UpdateItem(int iItemID, MoveRatio move, SizeRatio size);
+		void UpdateItem(HWND hWndItem, MoveRatio move, SizeRatio size);
 
 		//Static helper methods to use in the AddItem.
 		[[nodiscard]] static MoveRatio MoveNone() { return { }; }
@@ -450,16 +451,13 @@ export namespace GDIUT { //Windows GDI related stuff.
 		bool m_fTrack { };
 	};
 
-	void CDynLayout::AddItem(int iIDItem, MoveRatio move, SizeRatio size) {
-		AddItem(::GetDlgItem(m_hWndHost, iIDItem), move, size);
+	void CDynLayout::AddItem(int iItemID, MoveRatio move, SizeRatio size) {
+		AddItem(::GetDlgItem(m_hWndHost, iItemID), move, size);
 	}
 
 	void CDynLayout::AddItem(HWND hWndItem, MoveRatio move, SizeRatio size) {
 		assert(hWndItem != nullptr);
 		if (hWndItem == nullptr)
-			return;
-
-		if (move.IsNull() && size.IsNull())
 			return;
 
 		m_vecItems.emplace_back(ItemData { .hWnd { hWndItem }, .move { move }, .size { size } });
@@ -550,6 +548,24 @@ export namespace GDIUT { //Windows GDI related stuff.
 			::DeferWindowPos(hDWP, hWnd, nullptr, iNewLeft, iNewTop, iNewWidth, iNewHeight, SWP_NOZORDER | SWP_NOACTIVATE);
 		}
 		::EndDeferWindowPos(hDWP);
+	}
+
+	void CDynLayout::UpdateItem(int iItemID, MoveRatio move, SizeRatio size) {
+		UpdateItem(::GetDlgItem(m_hWndHost, iItemID), move, size);
+	}
+
+	void CDynLayout::UpdateItem(HWND hWndItem, MoveRatio move, SizeRatio size) {
+		assert(hWndItem != nullptr);
+		if (hWndItem == nullptr)
+			return;
+
+		auto it = std::find_if(m_vecItems.begin(), m_vecItems.end(), [=](const ItemData& id) {
+			return id.hWnd == hWndItem; });
+		assert(it != m_vecItems.end());
+		if (it != m_vecItems.end()) {
+			it->move = move;
+			it->size = size;
+		}
 	}
 
 	class CDC {
@@ -1076,7 +1092,7 @@ export namespace GDIUT { //Windows GDI related stuff.
 		std::uint16_t m_u16SizeHeightItem { };
 	};
 
-	auto CMenuColor::ProcessMsg(const MSG & msg)->LRESULT
+	auto CMenuColor::ProcessMsg(const MSG& msg)->LRESULT
 	{
 		switch (msg.message) {
 		case WM_COMMAND:
@@ -1095,7 +1111,7 @@ export namespace GDIUT { //Windows GDI related stuff.
 		}
 	}
 
-	void CMenuColor::SetColors(const MENUCOLORS & clrs)
+	void CMenuColor::SetColors(const MENUCOLORS& clrs)
 	{
 		m_clrs = clrs;
 	}
@@ -1216,7 +1232,7 @@ export namespace GDIUT { //Windows GDI related stuff.
 		}
 	}
 
-	auto CMenuColor::OnDrawItem(const MSG & msg)->LRESULT
+	auto CMenuColor::OnDrawItem(const MSG& msg)->LRESULT
 	{
 		const auto pDIS = reinterpret_cast<LPDRAWITEMSTRUCT>(msg.lParam);
 		const auto pII = reinterpret_cast<ITEMINFO*>(pDIS->itemData);
@@ -1290,7 +1306,7 @@ export namespace GDIUT { //Windows GDI related stuff.
 		return TRUE;
 	}
 
-	auto CMenuColor::OnMeasureItem(const MSG & msg)->LRESULT
+	auto CMenuColor::OnMeasureItem(const MSG& msg)->LRESULT
 	{
 		const auto pMIS = reinterpret_cast<LPMEASUREITEMSTRUCT>(msg.lParam);
 		const auto pII = reinterpret_cast<ITEMINFO*>(pMIS->itemData);
@@ -1447,7 +1463,7 @@ export namespace GDIUT { //Windows GDI related stuff.
 		return hIcon;
 	}
 
-	template<typename TCom> requires requires(TCom * pTCom) { pTCom->AddRef(); pTCom->Release(); }
+	template<typename TCom> requires requires(TCom* pTCom) { pTCom->AddRef(); pTCom->Release(); }
 	class comptr {
 	public:
 		comptr() = default;
@@ -1484,7 +1500,7 @@ export namespace GDIUT { //Windows GDI related stuff.
 		TCom* m_pTCom { };
 	};
 
-	[[nodiscard]] auto SVGToHBITMAP(IStream * pStream, int iWidth, int iHeight, ID2D1Factory * pD2DFactory = nullptr) -> HBITMAP {
+	[[nodiscard]] auto SVGToHBITMAP(IStream* pStream, int iWidth, int iHeight, ID2D1Factory* pD2DFactory = nullptr) -> HBITMAP {
 		//The "height" and "width" svg root attributes <svg ...height="30" width="30"...> must be removed from the svg file,
 		//to scale image correctly with the Direct2D. Otherwise, ID2D1SvgDocument will use these attributes for scaling,
 		//not its own viewport size.
@@ -1509,7 +1525,8 @@ export namespace GDIUT { //Windows GDI related stuff.
 		if (pDCRT == nullptr)
 			return { };
 
-		std::unique_ptr < std::remove_pointer_t<HDC>, decltype([](HDC hDC) { ::DeleteDC(hDC); }) > pHDC { ::CreateCompatibleDC(nullptr) };
+		std::unique_ptr < std::remove_pointer_t<HDC>, decltype([](HDC hDC) { ::DeleteDC(hDC); }) > pHDC {
+			::CreateCompatibleDC(nullptr) };
 		assert(pHDC != nullptr);
 		if (pHDC == nullptr)
 			return { };
@@ -1547,7 +1564,7 @@ export namespace GDIUT { //Windows GDI related stuff.
 	}
 
 	[[nodiscard]] auto SVGToHBITMAP(UINT uIDRes, int iWidth, int iHeight, HINSTANCE hInstRes = nullptr,
-		LPCWSTR pwszTypeRes = L"SVG", ID2D1Factory * pD2DFactory = nullptr) -> HBITMAP {
+		LPCWSTR pwszTypeRes = L"SVG", ID2D1Factory* pD2DFactory = nullptr) -> HBITMAP {
 		const auto hRCSVG = ::FindResourceW(hInstRes, MAKEINTRESOURCEW(uIDRes), pwszTypeRes);
 		assert(hRCSVG != nullptr);
 		if (hRCSVG == nullptr)

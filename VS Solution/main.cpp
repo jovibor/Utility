@@ -136,7 +136,7 @@ INT_PTR CALLBACK TestDialog(HWND hDlg, UINT message, WPARAM wParam, LPARAM lPara
 	switch (message) {
 	case WM_INITDIALOG:
 		g_Splitter.Initialize(hDlg, IDC_LIST, GDIUT::CSplitter::EAnchorSide::SIDE_LEFT);
-		g_Splitter.SetMinMaxEdge(30, 400);
+		g_Splitter.SetEdges(30, 400);
 		g_Splitter.AddItem(IDC_BUTTON_TEST, true);
 		return (INT_PTR)TRUE;
 	case WM_LBUTTONDOWN:
