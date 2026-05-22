@@ -87,55 +87,66 @@ export namespace GDIUT { //Windows GDI related stuff.
 
 	class CPoint final : public POINT {
 	public:
-		CPoint() : POINT { } { }
-		CPoint(POINT pt) : POINT { pt } { }
-		CPoint(int x, int y) : POINT { .x { x }, .y { y } } { }
-		~CPoint() = default;
-		operator LPPOINT() { return this; }
-		operator const POINT*()const { return this; }
-		[[nodiscard]] bool operator==(CPoint rhs)const { return x == rhs.x && y == rhs.y; }
-		[[nodiscard]] bool operator==(POINT rhs)const { return x == rhs.x && y == rhs.y; }
-		[[nodiscard]] friend bool operator==(POINT lhs, CPoint rhs) { return rhs == lhs; }
-		CPoint operator+(POINT pt)const { return { x + pt.x, y + pt.y }; }
-		CPoint operator-(POINT pt)const { return { x - pt.x, y - pt.y }; }
-		void Offset(int iX, int iY) { x += iX; y += iY; }
-		void Offset(POINT pt) { Offset(pt.x, pt.y); }
+		constexpr CPoint() : POINT { } { }
+		constexpr CPoint(POINT pt) : POINT { pt } { }
+		constexpr CPoint(int x, int y) : POINT { .x { x }, .y { y } } { }
+		constexpr ~CPoint() = default;
+		constexpr operator LPPOINT() { return this; }
+		constexpr operator const POINT*()const { return this; }
+		[[nodiscard]] constexpr bool operator==(const CPoint& rhs)const { return x == rhs.x && y == rhs.y; };
+		[[nodiscard]] constexpr bool operator==(const POINT& rhs)const { return x == rhs.x && y == rhs.y; }
+		[[nodiscard]] constexpr friend bool operator==(const POINT& lhs, const CPoint& rhs) { return rhs == lhs; }
+		[[nodiscard]] constexpr CPoint operator+(POINT pt)const { return { x + pt.x, y + pt.y }; }
+		[[nodiscard]] constexpr CPoint operator-(POINT pt)const { return { x - pt.x, y - pt.y }; }
+		constexpr void Offset(int iX, int iY) { x += iX; y += iY; }
+		constexpr void Offset(POINT pt) { Offset(pt.x, pt.y); }
 	};
 
 	class CRect final : public RECT {
 	public:
-		CRect() : RECT { } { }
-		CRect(int iLeft, int iTop, int iRight, int iBottom) : RECT { .left { iLeft }, .top { iTop },
+		constexpr CRect() : RECT { } { }
+		constexpr CRect(int iLeft, int iTop, int iRight, int iBottom) : RECT { .left { iLeft }, .top { iTop },
 			.right { iRight }, .bottom { iBottom } } { }
-		CRect(const RECT& rc) { ::CopyRect(this, &rc); }
-		CRect(LPCRECT pRC) { ::CopyRect(this, pRC); }
-		CRect(POINT pt, SIZE size) : RECT { .left { pt.x }, .top { pt.y }, .right { pt.x + size.cx },
+		constexpr CRect(const RECT& rc) { *this = rc; }
+		constexpr CRect(LPCRECT pRC) { if (pRC == nullptr) { return; } *this = *pRC; }
+		constexpr CRect(POINT pt, SIZE size) : RECT { .left { pt.x }, .top { pt.y }, .right { pt.x + size.cx },
 			.bottom { pt.y + size.cy } } { }
-		CRect(POINT topLeft, POINT botRight) : RECT { .left { topLeft.x }, .top { topLeft.y },
+		constexpr CRect(POINT topLeft, POINT botRight) : RECT { .left { topLeft.x }, .top { topLeft.y },
 			.right { botRight.x }, .bottom { botRight.y } } { }
-		~CRect() = default;
-		operator LPRECT() { return this; }
-		operator LPCRECT()const { return this; }
-		[[nodiscard]] bool operator==(const CRect& rhs)const { return ::EqualRect(this, rhs); }
-		[[nodiscard]] bool operator==(const RECT& rhs)const { return ::EqualRect(this, &rhs); }
-		[[nodiscard]] friend bool operator==(const RECT& lhs, const CRect& rhs) { return rhs == lhs; }
-		CRect& operator=(const RECT& rhs) { ::CopyRect(this, &rhs); return *this; }
-		CRect& operator=(const CRect& rhs) { ::CopyRect(this, &rhs); return *this; }
-		[[nodiscard]] auto BottomRight()const -> CPoint { return { { .x { right }, .y { bottom } } }; };
-		void DeflateRect(int x, int y) { ::InflateRect(this, -x, -y); }
-		void DeflateRect(SIZE size) { ::InflateRect(this, -size.cx, -size.cy); }
-		void DeflateRect(LPCRECT pRC) { left += pRC->left; top += pRC->top; right -= pRC->right; bottom -= pRC->bottom; }
-		void DeflateRect(int l, int t, int r, int b) { left += l; top += t; right -= r; bottom -= b; }
-		[[nodiscard]] int Height()const { return bottom - top; }
-		[[nodiscard]] bool IsRectEmpty()const { return ::IsRectEmpty(this); }
-		[[nodiscard]] bool IsRectNull()const { return (left == 0 && right == 0 && top == 0 && bottom == 0); }
-		void OffsetRect(int x, int y) { ::OffsetRect(this, x, y); }
-		void OffsetRect(POINT pt) { ::OffsetRect(this, pt.x, pt.y); }
-		[[nodiscard]] bool PtInRect(POINT pt)const { return ::PtInRect(this, pt); }
-		void SetRect(int x1, int y1, int x2, int y2) { ::SetRect(this, x1, y1, x2, y2); }
-		void SetRectEmpty() { ::SetRectEmpty(this); }
-		[[nodiscard]] auto TopLeft()const -> CPoint { return { { .x { left }, .y { top } } }; };
-		[[nodiscard]] int Width()const { return right - left; }
+		constexpr ~CRect() = default;
+		constexpr operator LPRECT() { return this; }
+		constexpr operator LPCRECT()const { return this; }
+		[[nodiscard]] constexpr bool operator==(const CRect& rhs)const {
+			return left == rhs.left && top == rhs.top && right == rhs.right && bottom == rhs.bottom;
+		};
+		[[nodiscard]] constexpr bool operator==(const RECT& rhs)const {
+			return *this == CRect(rhs);
+		}
+		[[nodiscard]] constexpr friend bool operator==(const RECT& lhs, const CRect& rhs) { return rhs == lhs; }
+		constexpr CRect& operator=(const RECT& rhs) {
+			left = rhs.left; top = rhs.top; right = rhs.right; bottom = rhs.bottom;
+			return *this;
+		}
+		[[nodiscard]] constexpr auto BottomRight()const -> CPoint { return { { .x { right }, .y { bottom } } }; };
+		constexpr void DeflateRect(int x, int y) { InflateRect(-x, -y); }
+		constexpr void DeflateRect(SIZE size) { InflateRect(-size.cx, -size.cy); }
+		constexpr void DeflateRect(LPCRECT pRC) { left += pRC->left; top += pRC->top; right -= pRC->right; bottom -= pRC->bottom; }
+		constexpr void DeflateRect(int l, int t, int r, int b) { left += l; top += t; right -= r; bottom -= b; }
+		[[nodiscard]] constexpr int Height()const { return bottom - top; }
+		constexpr void InflateRect(int x, int y) { left -= x; top -= y; right += x; bottom += y; };
+		[[nodiscard]] constexpr bool IsRectEmpty()const { return right <= left || bottom <= top; }
+		[[nodiscard]] constexpr bool IsRectNull()const { return left == 0 && right == 0 && top == 0 && bottom == 0; }
+		constexpr void OffsetRect(int x, int y) { left += x; right += x; top += y; bottom += y; }
+		constexpr void OffsetRect(POINT pt) { OffsetRect(pt.x, pt.y); }
+		[[nodiscard]] constexpr bool PtInRect(POINT pt)const {
+			return pt.x >= left && pt.y >= top && pt.x < right && pt.y < bottom;
+		}
+		constexpr void SetRect(int iLeft, int iTop, int iRight, int iBottom) {
+			left = iLeft; top = iTop; right = iRight; bottom = iBottom;
+		}
+		constexpr void SetRectEmpty() { left = top = right = bottom = 0; }
+		[[nodiscard]] constexpr auto TopLeft()const -> CPoint { return { { .x { left }, .y { top } } }; };
+		[[nodiscard]] constexpr int Width()const { return right - left; }
 	};
 
 	class CSplitter final {
@@ -576,9 +587,8 @@ export namespace GDIUT { //Windows GDI related stuff.
 		~CDC() = default;
 		operator HDC()const { return m_hDC; }
 		void AbortDoc()const { ::AbortDoc(m_hDC); }
-		int AlphaBlend(int iX, int iY, int iWidth, int iHeight, HDC hDCSrc,
-			int iXSrc, int iYSrc, int iWidthSrc, int iHeightSrc, BYTE bSrcAlpha = 255, BYTE bAlphaFormat = AC_SRC_ALPHA)const {
-			const BLENDFUNCTION bf { .SourceConstantAlpha { bSrcAlpha }, .AlphaFormat { bAlphaFormat } };
+		int AlphaBlend(int iX, int iY, int iWidth, int iHeight, HDC hDCSrc, int iXSrc, int iYSrc, int iWidthSrc,
+			int iHeightSrc, BLENDFUNCTION bf = { .SourceConstantAlpha { 255 }, .AlphaFormat { AC_SRC_ALPHA } })const {
 			return ::AlphaBlend(m_hDC, iX, iY, iWidth, iHeight, hDCSrc, iXSrc, iYSrc, iWidthSrc, iHeightSrc, bf);
 		}
 		BOOL BitBlt(int iX, int iY, int iWidth, int iHeight, HDC hDCSource, int iXSource, int iYSource, DWORD dwROP)const {
@@ -608,7 +618,9 @@ export namespace GDIUT { //Windows GDI related stuff.
 			//If destination and source bitmaps do not have the same color format, 
 			//AlphaBlend converts the source bitmap to match the destination bitmap.
 			//AlphaBlend works with both, DI (DeviceIndependent) and DD (DeviceDependent), bitmaps.
-			AlphaBlend(iX, iY, iWidth, iHeight, dcMem, 0, 0, iWidth, iHeight, 255, bm.bmBitsPixel == 32 ? AC_SRC_ALPHA : 0);
+			const BLENDFUNCTION bf = { .SourceConstantAlpha { 255 }, .AlphaFormat {
+				static_cast<BYTE>(bm.bmBitsPixel == 32 ? AC_SRC_ALPHA : 0) } };
+			AlphaBlend(iX, iY, iWidth, iHeight, dcMem, 0, 0, iWidth, iHeight, bf);
 			dcMem.DeleteDC();
 		}
 		[[nodiscard]] HDC GetHDC()const { return m_hDC; }
@@ -627,7 +639,7 @@ export namespace GDIUT { //Windows GDI related stuff.
 		void FillSolidRect(LPCRECT pRC, COLORREF clr)const {
 			::SetBkColor(m_hDC, clr); ::ExtTextOutW(m_hDC, 0, 0, ETO_OPAQUE, pRC, nullptr, 0, nullptr);
 		}
-		[[nodiscard]] auto GetClipBox()const -> CRect { RECT rc; ::GetClipBox(m_hDC, &rc); return rc; }
+		[[nodiscard]] auto GetClipBox()const -> CRect { CRect rc; ::GetClipBox(m_hDC, rc); return rc; }
 		bool LineTo(POINT pt)const { return LineTo(pt.x, pt.y); }
 		bool LineTo(int x, int y)const { return ::LineTo(m_hDC, x, y); }
 		bool MoveTo(POINT pt)const { return MoveTo(pt.x, pt.y); }
@@ -711,7 +723,7 @@ export namespace GDIUT { //Windows GDI related stuff.
 		void DestroyWindow() { assert(IsWindow()); ::DestroyWindow(m_hWnd); m_hWnd = nullptr; }
 		void Detach() { m_hWnd = nullptr; }
 		[[nodiscard]] auto GetClientRect()const -> CRect {
-			assert(IsWindow()); RECT rc; ::GetClientRect(m_hWnd, &rc); return rc;
+			assert(IsWindow()); CRect rc; ::GetClientRect(m_hWnd, rc); return rc;
 		}
 		bool EnableWindow(bool fEnable)const { assert(IsWindow()); return ::EnableWindow(m_hWnd, fEnable); }
 		void EndDialog(INT_PTR iResult)const { assert(IsWindow()); ::EndDialog(m_hWnd, iResult); }
@@ -744,7 +756,7 @@ export namespace GDIUT { //Windows GDI related stuff.
 			assert(IsWindow()); return ::GetWindowLongPtrW(m_hWnd, iIndex);
 		}
 		[[nodiscard]] auto GetWindowRect()const -> CRect {
-			assert(IsWindow()); RECT rc; ::GetWindowRect(m_hWnd, &rc); return rc;
+			assert(IsWindow()); CRect rc; ::GetWindowRect(m_hWnd, rc); return rc;
 		}
 		[[nodiscard]] auto GetWindowStyles()const { return static_cast<DWORD>(GetWindowLongPTR(GWL_STYLE)); }
 		[[nodiscard]] auto GetWindowStylesEx()const { return static_cast<DWORD>(GetWindowLongPTR(GWL_EXSTYLE)); }
@@ -931,7 +943,7 @@ export namespace GDIUT { //Windows GDI related stuff.
 		}
 		[[nodiscard]] auto GetItemRect(int iItem)const -> CRect {
 			assert(IsWindow());
-			RECT rc { }; SendMsg(TCM_GETITEMRECT, iItem, reinterpret_cast<LPARAM>(&rc));
+			CRect rc; SendMsg(TCM_GETITEMRECT, iItem, reinterpret_cast<LPARAM>(&rc));
 			return rc;
 		}
 		auto InsertItem(int iItem, TCITEMW* pItem)const -> LONG {

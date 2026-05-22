@@ -354,7 +354,9 @@ export namespace DXUT {
 		CTextEffect(ID2D1Brush* pBrushBk, ID2D1Brush* pBrushText) : m_pBrushBk(pBrushBk), m_pBrushText(pBrushText) { }
 		auto AddRef() -> ULONG override { return 1UL; }
 		auto Release() -> ULONG override { return 1UL; }
-		auto QueryInterface([[maybe_unused]] const IID& riid, [[maybe_unused]] void** ppvObject) -> HRESULT override { return E_NOTIMPL; }
+		auto QueryInterface([[maybe_unused]] const IID& riid, [[maybe_unused]] void** ppvObject) -> HRESULT override {
+			return E_NOTIMPL;
+		}
 		[[nodiscard]] auto GetBkBrush()const -> ID2D1Brush* { return m_pBrushBk; };
 		[[nodiscard]] auto GetTextBrush()const -> ID2D1Brush* { return m_pBrushText; };
 		void SetBkBrush(ID2D1Brush* pBrushBk) { m_pBrushBk = pBrushBk; }
@@ -392,10 +394,8 @@ export namespace DXUT {
 		}
 		auto DrawGlyphRun([[maybe_unused]] void* pContext, FLOAT flBaseLineX, FLOAT flBaseLineY, DWRITE_MEASURING_MODE eMMode,
 			const DWRITE_GLYPH_RUN* pGR, [[maybe_unused]] const DWRITE_GLYPH_RUN_DESCRIPTION* pGRD, IUnknown* pEffect) -> HRESULT override {
-			const auto pTextEffect = static_cast<CTextEffect*>(pEffect);
 			ID2D1Brush* pBrushText;
-
-			if (pTextEffect != nullptr) {
+			if (const auto pTextEffect = static_cast<CTextEffect*>(pEffect); pTextEffect != nullptr) {
 				const auto pBrushBk = pTextEffect->GetBkBrush();
 				pBrushText = pTextEffect->GetTextBrush();
 
@@ -413,7 +413,9 @@ export namespace DXUT {
 					flBaseLineX + flTextWidth, flBaseLineY + flDescent);
 				m_context.pDeviceContext->FillRectangle(rcBk, pBrushBk);
 			}
-			else { pBrushText = m_context.pBrushTextDef; }
+			else {
+				pBrushText = m_context.pBrushTextDef;
+			}
 
 			m_context.pDeviceContext->DrawGlyphRun(D2D1::Point2F(flBaseLineX, flBaseLineY), pGR, pBrushText, eMMode);
 
@@ -425,7 +427,7 @@ export namespace DXUT {
 			return E_NOTIMPL;
 		}
 		auto DrawStrikethrough([[maybe_unused]] void* pContext, FLOAT flBaseLineX, FLOAT flBaseLineY,
-			[[maybe_unused]] const DWRITE_STRIKETHROUGH* pStrikeThrough, [[maybe_unused]] IUnknown* pEffect) -> HRESULT override {
+			const DWRITE_STRIKETHROUGH* pStrikeThrough, [[maybe_unused]] IUnknown* pEffect) -> HRESULT override {
 			const auto flTop = flBaseLineY + pStrikeThrough->offset;
 			m_context.pDeviceContext->DrawLine(D2D1::Point2F(flBaseLineX, flTop),
 				D2D1::Point2F(flBaseLineX + pStrikeThrough->width, flTop), m_context.pBrushTextDef, pStrikeThrough->thickness);
@@ -438,11 +440,11 @@ export namespace DXUT {
 				D2D1::Point2F(flBaseLineX + pUnderline->width, flTop), m_context.pBrushTextDef, pUnderline->thickness);
 			return S_OK;
 		}
-		auto GetCurrentTransform([[maybe_unused]] void* pContext, [[maybe_unused]] DWRITE_MATRIX* pMatrix) -> HRESULT override {
+		auto GetCurrentTransform([[maybe_unused]] void* pContext, DWRITE_MATRIX* pMatrix) -> HRESULT override {
 			m_context.pDeviceContext->GetTransform(reinterpret_cast<D2D1_MATRIX_3X2_F*>(pMatrix));
 			return S_OK;
 		}
-		auto GetPixelsPerDip([[maybe_unused]] void* pContext, [[maybe_unused]] FLOAT* pPixelsPerDip) -> HRESULT override {
+		auto GetPixelsPerDip([[maybe_unused]] void* pContext, FLOAT* pPixelsPerDip) -> HRESULT override {
 			float flDPIX;
 			float flDPIY;
 			m_context.pDeviceContext->GetDpi(&flDPIX, &flDPIY);
