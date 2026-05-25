@@ -26,10 +26,7 @@
     <ClCompile Include="main.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\Utility\DXUtility.ixx">
-      <Filter>Utility</Filter>
-    </ClCompile>
-    <ClCompile Include="..\Utility\GDIUtility.ixx">
+    <ClCompile Include="..\Utility\Utility.ixx">
       <Filter>Utility</Filter>
     </ClCompile>
   </ItemGroup>
