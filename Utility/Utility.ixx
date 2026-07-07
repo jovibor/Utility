@@ -25,8 +25,13 @@ export module Utility;
 #pragma comment(lib, "d2d1")
 #pragma comment (lib, "d3d11") 
 #pragma comment(lib, "dwrite")
-#pragma comment(lib, "MSImg32") //AlphaBlend.
-#pragma comment(lib, "Shlwapi") //SHCreateMemStream.
+#pragma comment(lib, "MSImg32")  //AlphaBlend.
+#pragma comment(lib, "Shlwapi")  //SHCreateMemStream.
+#pragma comment(lib, "Comctl32") //SetWindowSubclass
+
+//Setting a manifest for the ComCtl32.dll version 6.
+#pragma comment(linker,"/manifestdependency:\"type='win32' name='Microsoft.Windows.Common-Controls' \
+version='6.0.0.0' processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'\"")
 
 export namespace DXUT {
 	template<typename TCom> requires requires(TCom* pTCom) { pTCom->AddRef(); pTCom->Release(); }
@@ -851,6 +856,7 @@ export namespace GDIUT { //Windows GDI related stuff.
 		m_pSplitterCurrentlyInUse = nullptr;
 	}
 
+
 	class CDynLayout final {
 	public:
 		//Ratio settings, for how much to move or to resize child item when parent is resized.
@@ -868,11 +874,10 @@ export namespace GDIUT { //Windows GDI related stuff.
 		void Enable(bool fTrack);
 		bool LoadFromResource(HINSTANCE hInstRes, const wchar_t* pwszResName);
 		bool LoadFromResource(HINSTANCE hInstRes, UINT uResID);
-		void RemoveAll() { m_vecItems.clear(); }
-		void SetHost(HWND hWnd) { assert(hWnd != nullptr); m_hWndHost = hWnd; }
+		void RemoveAll();
+		void SetHostWindow(HWND hWndHost); //This is the main method that should be called first.
 		void UpdateItem(int iItemID, MoveRatio move, SizeRatio size);
 		void UpdateItem(HWND hWndItem, MoveRatio move, SizeRatio size);
-		void WMSize(int iWidth, int iHeight)const; //Should be hooked into the host window's WM_SIZE handler.
 
 		//Static helper methods to use in the AddItem.
 		[[nodiscard]] static MoveRatio MoveNone() { return { }; }
@@ -895,6 +900,10 @@ export namespace GDIUT { //Windows GDI related stuff.
 		[[nodiscard]] static SizeRatio SizeHorzAndVert(int iXRatio, int iYRatio) {
 			return { { .flXRatio { ToFlRatio(iXRatio) }, .flYRatio { ToFlRatio(iYRatio) } } };
 		}
+	private:
+		void WMSize(int iWidth, int iHeight)const;
+		static auto CALLBACK SubclassProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam,
+			UINT_PTR uIDSubclass, DWORD_PTR dwRefData)->LRESULT;
 	private:
 		[[nodiscard]] static auto ToFlRatio(int iRatio) -> float {
 			return std::clamp(iRatio, 0, 100) / 100.F;
@@ -945,6 +954,7 @@ export namespace GDIUT { //Windows GDI related stuff.
 			return false;
 
 		const auto hDlgLayout = ::FindResourceW(hInstRes, pwszResName, L"AFX_DIALOG_LAYOUT");
+		assert(hDlgLayout != nullptr);
 		if (hDlgLayout == nullptr) { //No such resource found in the hInstRes.
 			return false;
 		}
@@ -964,10 +974,10 @@ export namespace GDIUT { //Windows GDI related stuff.
 		const auto* const pDataEnd = reinterpret_cast<WORD*>(reinterpret_cast<std::byte*>(pResData) + dwSizeRes);
 
 		assert(*pDataBegin == 0);
-		if (*pDataBegin != 0) //First WORD must be zero, it's a header (version number).
+		if (*pDataBegin != 0) //The first WORD must be zero, it's a header (version number).
 			return false;
 
-		++pDataBegin; //Past first WORD is the actual data.
+		++pDataBegin; //Past the first WORD is the actual data.
 		auto hWndChild = ::GetWindow(m_hWndHost, GW_CHILD); //First child window in the host window.
 		while (pDataBegin + 4 <= pDataEnd) { //Actual AFX_DIALOG_LAYOUT data.
 			if (hWndChild == nullptr)
@@ -988,6 +998,16 @@ export namespace GDIUT { //Windows GDI related stuff.
 		return LoadFromResource(hInstRes, MAKEINTRESOURCEW(uResID));
 	}
 
+	void CDynLayout::RemoveAll() {
+		m_vecItems.clear();
+	}
+
+	void CDynLayout::SetHostWindow(HWND hWndHost) {
+		assert(hWndHost != nullptr);
+		m_hWndHost = hWndHost;
+		::SetWindowSubclass(m_hWndHost, SubclassProc, reinterpret_cast<UINT_PTR>(this), 0);
+	}
+
 	void CDynLayout::UpdateItem(int iItemID, MoveRatio move, SizeRatio size) {
 		UpdateItem(::GetDlgItem(m_hWndHost, iItemID), move, size);
 	}
@@ -1005,6 +1025,8 @@ export namespace GDIUT { //Windows GDI related stuff.
 			it->size = size;
 		}
 	}
+
+	//Private methods.
 
 	void CDynLayout::WMSize(int iWidth, int iHeight)const {
 		if (!m_fTrack)
@@ -1027,6 +1049,23 @@ export namespace GDIUT { //Windows GDI related stuff.
 		}
 		::EndDeferWindowPos(hDWP);
 	}
+
+	auto CDynLayout::SubclassProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam, UINT_PTR uIDSubclass,
+	 [[maybe_unused]] DWORD_PTR dwRefData)->LRESULT {
+		switch (uMsg) {
+		case WM_SIZE:
+			reinterpret_cast<CDynLayout*>(uIDSubclass)->WMSize(LOWORD(lParam), HIWORD(lParam));
+			break;
+		case WM_NCDESTROY:
+			::RemoveWindowSubclass(hWnd, SubclassProc, uIDSubclass);
+			break;
+		default:
+			break;
+		}
+
+		return ::DefSubclassProc(hWnd, uMsg, wParam, lParam);
+	}
+
 
 	class CDC {
 	public:

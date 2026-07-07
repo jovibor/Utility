@@ -8,19 +8,19 @@ import Utility;
 
 #define MAX_LOADSTRING 100
 
-HINSTANCE hInst;                                // current instance
+HINSTANCE g_hInstance;                                // current instance
 WCHAR szTitle[MAX_LOADSTRING];                  // The title bar text
 WCHAR szWindowClass[MAX_LOADSTRING];            // the main window class name
 ATOM MyRegisterClass(HINSTANCE hInstance);
 BOOL InitInstance(HINSTANCE, int);
 LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK About(HWND, UINT, WPARAM, LPARAM);
-INT_PTR CALLBACK TestDialog(HWND, UINT, WPARAM, LPARAM);
+INT_PTR CALLBACK TestDialogProc(HWND, UINT, WPARAM, LPARAM);
+
 GDIUT::CSplitter g_Splitter;
+GDIUT::CDynLayout g_DynLayout;
 
 WPARAM RunMainWnd(HINSTANCE hInstance, int nCmdShow) {
-	LoadStringW(hInstance, IDS_APP_TITLE, szTitle, MAX_LOADSTRING);
-	LoadStringW(hInstance, IDC_UTILITY, szWindowClass, MAX_LOADSTRING);
 	MyRegisterClass(hInstance);
 
 	if (!InitInstance(hInstance, nCmdShow)) {
@@ -41,8 +41,10 @@ WPARAM RunMainWnd(HINSTANCE hInstance, int nCmdShow) {
 
 int APIENTRY wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLine, int nCmdShow)
 {
-	RunMainWnd(hInstance, nCmdShow);
-	//DialogBoxParamW(hInst, MAKEINTRESOURCE(IDD_TEST), nullptr, TestDialog, 0);
+	g_hInstance = hInstance;
+
+	//RunMainWnd(g_hInstance, nCmdShow);
+	DialogBoxParamW(g_hInstance, MAKEINTRESOURCE(IDD_TEST), nullptr, TestDialogProc, 0);
 
 	return 0;
 }
@@ -68,7 +70,6 @@ ATOM MyRegisterClass(HINSTANCE hInstance)
 
 BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 {
-	hInst = hInstance; // Store instance handle in our global variable
 	const auto hWnd = CreateWindowW(szWindowClass, szTitle, WS_OVERLAPPEDWINDOW,
 	   CW_USEDEFAULT, 0, CW_USEDEFAULT, 0, nullptr, nullptr, hInstance, nullptr);
 	if (!hWnd) {
@@ -89,7 +90,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		int wmId = LOWORD(wParam);
 		switch (wmId) { //Parse the menu selections:
 		case IDM_ABOUT:
-			DialogBoxParamW(hInst, MAKEINTRESOURCE(IDD_ABOUTBOX), hWnd, About, 0);
+			DialogBoxParamW(g_hInstance, MAKEINTRESOURCE(IDD_ABOUTBOX), hWnd, About, 0);
 			break;
 		case IDM_EXIT:
 			DestroyWindow(hWnd);
@@ -131,10 +132,15 @@ INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 	return (INT_PTR)FALSE;
 }
 
-INT_PTR CALLBACK TestDialog(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
+INT_PTR CALLBACK TestDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 {
 	switch (message) {
 	case WM_INITDIALOG:
+		g_DynLayout.SetHostWindow(hDlg);
+		g_DynLayout.AddItem(IDOK, GDIUT::CDynLayout::MoveHorzAndVert(100, 100), GDIUT::CDynLayout::SizeNone());
+		g_DynLayout.AddItem(IDCANCEL, GDIUT::CDynLayout::MoveHorzAndVert(100, 100), GDIUT::CDynLayout::SizeNone());
+		g_DynLayout.Enable(true);
+
 		g_Splitter.Initialize(hDlg, IDC_LIST, GDIUT::CSplitter::EAnchorSide::SIDE_LEFT);
 		g_Splitter.SetEdges(30, 400);
 		g_Splitter.AddItem(IDC_BUTTON_TEST, true);
