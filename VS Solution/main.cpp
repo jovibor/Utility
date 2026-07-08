@@ -136,7 +136,7 @@ INT_PTR CALLBACK TestDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM l
 {
 	switch (message) {
 	case WM_INITDIALOG:
-		g_DynLayout.SetHostWindow(hDlg);
+		g_DynLayout.Initialize(hDlg);
 		g_DynLayout.AddItem(IDOK, GDIUT::CDynLayout::MoveHorzAndVert(100, 100), GDIUT::CDynLayout::SizeNone());
 		g_DynLayout.AddItem(IDCANCEL, GDIUT::CDynLayout::MoveHorzAndVert(100, 100), GDIUT::CDynLayout::SizeNone());
 		g_DynLayout.Enable(true);
@@ -145,18 +145,9 @@ INT_PTR CALLBACK TestDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM l
 		g_Splitter.SetEdges(30, 400);
 		g_Splitter.AddItem(IDC_BUTTON_TEST, true);
 		return (INT_PTR)TRUE;
-	case WM_LBUTTONDOWN:
-		g_Splitter.WMLButtonDown(GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
-		return (INT_PTR)TRUE;
-	case WM_LBUTTONUP:
-		g_Splitter.WMLButtonUp();
-		return (INT_PTR)TRUE;
-	case WM_MOUSEMOVE:
-		g_Splitter.WMMouseMove(GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
-		return (INT_PTR)TRUE;
 	case WM_COMMAND:
 		if (LOWORD(wParam) == IDOK || LOWORD(wParam) == IDCANCEL) {
-			EndDialog(hDlg, LOWORD(wParam));
+			::EndDialog(hDlg, LOWORD(wParam));
 			return (INT_PTR)TRUE;
 		}
 		break;
