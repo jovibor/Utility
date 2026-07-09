@@ -8,9 +8,8 @@ import Utility;
 
 #define MAX_LOADSTRING 100
 
-HINSTANCE g_hInstance;                                // current instance
-WCHAR szTitle[MAX_LOADSTRING];                  // The title bar text
-WCHAR szWindowClass[MAX_LOADSTRING];            // the main window class name
+HINSTANCE g_hInstance;                       // current instance
+LPCWSTR szWindowClass { L"WindowClass" };    // the main window class name
 ATOM MyRegisterClass(HINSTANCE hInstance);
 BOOL InitInstance(HINSTANCE, int);
 LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM);
@@ -19,6 +18,8 @@ INT_PTR CALLBACK TestDialogProc(HWND, UINT, WPARAM, LPARAM);
 
 GDIUT::CSplitter g_Splitter;
 GDIUT::CDynLayout g_DynLayout;
+GDIUT::CLinkCtrl g_Link1;
+GDIUT::CLinkCtrl g_Link2;
 
 WPARAM RunMainWnd(HINSTANCE hInstance, int nCmdShow) {
 	MyRegisterClass(hInstance);
@@ -39,10 +40,9 @@ WPARAM RunMainWnd(HINSTANCE hInstance, int nCmdShow) {
 	return (int)msg.wParam;
 }
 
-int APIENTRY wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLine, int nCmdShow)
-{
+int APIENTRY wWinMain(HINSTANCE hInstance, [[maybe_unused]] HINSTANCE hPrevInstance,
+	[[maybe_unused]] LPWSTR lpCmdLine, [[maybe_unused]] int nCmdShow) {
 	g_hInstance = hInstance;
-
 	//RunMainWnd(g_hInstance, nCmdShow);
 	DialogBoxParamW(g_hInstance, MAKEINTRESOURCE(IDD_TEST), nullptr, TestDialogProc, 0);
 
@@ -70,7 +70,7 @@ ATOM MyRegisterClass(HINSTANCE hInstance)
 
 BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 {
-	const auto hWnd = CreateWindowW(szWindowClass, szTitle, WS_OVERLAPPEDWINDOW,
+	const auto hWnd = CreateWindowW(szWindowClass, L"Title", WS_OVERLAPPEDWINDOW,
 	   CW_USEDEFAULT, 0, CW_USEDEFAULT, 0, nullptr, nullptr, hInstance, nullptr);
 	if (!hWnd) {
 		return FALSE;
@@ -103,9 +103,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	case WM_PAINT:
 	{
 		PAINTSTRUCT ps;
-		HDC hdc = BeginPaint(hWnd, &ps);
-		// TODO: Add any drawing code that uses hdc here...
-		EndPaint(hWnd, &ps);
+		::BeginPaint(hWnd, &ps);
+
+		::EndPaint(hWnd, &ps);
 	}
 	break;
 	case WM_DESTROY:
@@ -117,10 +117,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	return 0;
 }
 
-INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
+INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, [[maybe_unused]] LPARAM lParam)
 {
 	switch (message) {
 	case WM_INITDIALOG:
+		g_Link1.Initialize(hDlg, IDC_STATIC_COPYRIGHT, L"https://google.com");
 		return (INT_PTR)TRUE;
 	case WM_COMMAND:
 		if (LOWORD(wParam) == IDOK || LOWORD(wParam) == IDCANCEL) {
@@ -132,11 +133,21 @@ INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 	return (INT_PTR)FALSE;
 }
 
-INT_PTR CALLBACK TestDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
+INT_PTR CALLBACK TestDialogProc(HWND hDlg, UINT message, WPARAM wParam, [[maybe_unused]] LPARAM lParam)
 {
 	switch (message) {
+	case WM_DPICHANGED:
+		g_DynLayout.Enable(true);
+		g_Link1.WMDPIChanged();
+		g_Link2.WMDPIChanged();
+		return 0;
+	case WM_GETDPISCALEDSIZE:
+		g_DynLayout.Enable(false);
+		return 0;
 	case WM_INITDIALOG:
 		g_DynLayout.Initialize(hDlg);
+		g_DynLayout.AddItem(IDC_BUTTON_TEST, GDIUT::CDynLayout::MoveNone(), GDIUT::CDynLayout::SizeHorzAndVert(50, 100));
+		g_DynLayout.AddItem(IDC_LIST, GDIUT::CDynLayout::MoveHorz(50), GDIUT::CDynLayout::SizeHorzAndVert(50, 100));
 		g_DynLayout.AddItem(IDOK, GDIUT::CDynLayout::MoveHorzAndVert(100, 100), GDIUT::CDynLayout::SizeNone());
 		g_DynLayout.AddItem(IDCANCEL, GDIUT::CDynLayout::MoveHorzAndVert(100, 100), GDIUT::CDynLayout::SizeNone());
 		g_DynLayout.Enable(true);
@@ -144,6 +155,10 @@ INT_PTR CALLBACK TestDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM l
 		g_Splitter.Initialize(hDlg, IDC_LIST, GDIUT::CSplitter::EAnchorSide::SIDE_LEFT);
 		g_Splitter.SetEdges(30, 400);
 		g_Splitter.AddItem(IDC_BUTTON_TEST, true);
+
+		g_Link1.Initialize(hDlg, IDC_STATIC1, L"https://google.com");
+		g_Link2.Initialize(hDlg, IDC_STATIC2);
+
 		return (INT_PTR)TRUE;
 	case WM_COMMAND:
 		if (LOWORD(wParam) == IDOK || LOWORD(wParam) == IDCANCEL) {
