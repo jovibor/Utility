@@ -18,7 +18,7 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="Resource.h">
+    <ClInclude Include="resource.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
@@ -40,6 +40,12 @@
       <Filter>Resource Files</Filter>
     </Image>
     <Image Include="Utility.ico">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="res\IDB_MFC.bmp">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="res\IDB_SEARCH32.bmp">
       <Filter>Resource Files</Filter>
     </Image>
   </ItemGroup>

@@ -159,7 +159,7 @@
     </Manifest>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClInclude Include="Resource.h" />
+    <ClInclude Include="resource.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\Utility\Utility.ixx" />
@@ -169,6 +169,8 @@
     <ResourceCompile Include="Utility.rc" />
   </ItemGroup>
   <ItemGroup>
+    <Image Include="res\IDB_MFC.bmp" />
+    <Image Include="res\IDB_SEARCH32.bmp" />
     <Image Include="small.ico" />
     <Image Include="Utility.ico" />
   </ItemGroup>

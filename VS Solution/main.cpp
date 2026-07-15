@@ -8,7 +8,7 @@ import Utility;
 
 #define MAX_LOADSTRING 100
 
-HINSTANCE g_hInstance;                       // current instance
+HINSTANCE g_hInstance { };                   // current instance
 LPCWSTR szWindowClass { L"WindowClass" };    // the main window class name
 ATOM MyRegisterClass(HINSTANCE hInstance);
 BOOL InitInstance(HINSTANCE, int);
@@ -20,6 +20,7 @@ GDIUT::CSplitter g_Splitter;
 GDIUT::CDynLayout g_DynLayout;
 GDIUT::CLinkCtrl g_Link1;
 GDIUT::CLinkCtrl g_Link2;
+GDIUT::CMenu m_menu;
 
 WPARAM RunMainWnd(HINSTANCE hInstance, int nCmdShow) {
 	MyRegisterClass(hInstance);
@@ -104,7 +105,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	{
 		PAINTSTRUCT ps;
 		::BeginPaint(hWnd, &ps);
-
 		::EndPaint(hWnd, &ps);
 	}
 	break;
@@ -133,9 +133,68 @@ INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, [[maybe_unused]] 
 	return (INT_PTR)FALSE;
 }
 
-INT_PTR CALLBACK TestDialogProc(HWND hDlg, UINT message, WPARAM wParam, [[maybe_unused]] LPARAM lParam)
-{
+auto CALLBACK TestDialogWMINITDIALOG(HWND hDlg)->INT_PTR {
+	g_DynLayout.Initialize(hDlg);
+	g_DynLayout.AddItem(IDC_BUTTON_TEST, GDIUT::CDynLayout::MoveNone(), GDIUT::CDynLayout::SizeHorzAndVert(50, 100));
+	g_DynLayout.AddItem(IDC_LIST, GDIUT::CDynLayout::MoveHorz(50), GDIUT::CDynLayout::SizeHorzAndVert(50, 100));
+	g_DynLayout.AddItem(IDOK, GDIUT::CDynLayout::MoveHorzAndVert(100, 100), GDIUT::CDynLayout::SizeNone());
+	g_DynLayout.AddItem(IDCANCEL, GDIUT::CDynLayout::MoveHorzAndVert(100, 100), GDIUT::CDynLayout::SizeNone());
+	g_DynLayout.Enable(true);
+
+	g_Splitter.Initialize(hDlg, IDC_LIST, GDIUT::CSplitter::EAnchorSide::SIDE_LEFT);
+	g_Splitter.SetEdges(30, 400);
+	g_Splitter.AddItem(IDC_BUTTON_TEST, true);
+
+	g_Link1.Initialize(hDlg, IDC_STATIC1, L"https://google.com");
+	g_Link2.Initialize(hDlg, IDC_STATIC2);
+
+	m_menu.LoadMenuW(g_hInstance, IDR_COLORMENU);
+
+	const auto flDPIScale = GDIUT::GetDPIScaleForHWND(hDlg);
+	const auto iSizeIcon = static_cast<int>(16 * flDPIScale);
+	const auto bmpSearch = static_cast<HBITMAP>(::LoadImageW(g_hInstance, MAKEINTRESOURCEW(IDB_SEARCH32),
+		IMAGE_BITMAP, iSizeIcon, iSizeIcon, LR_CREATEDIBSECTION));
+	const auto menuSub = m_menu.GetSubMenu(0);
+	menuSub.SetItemBitmap(IDM_SEARCH, bmpSearch);
+
+	const auto bmpMFC = static_cast<HBITMAP>(::LoadImageW(g_hInstance, MAKEINTRESOURCEW(IDB_MFC),
+		IMAGE_BITMAP, iSizeIcon, iSizeIcon, LR_CREATEDIBSECTION));
+	menuSub.SetItemBitmap(IDM_LONGMENU, bmpMFC);
+
+	const auto icon32 = static_cast<HICON>(::LoadImageW(g_hInstance, MAKEINTRESOURCEW(IDI_UTILITY),
+		IMAGE_ICON, iSizeIcon, iSizeIcon, 0));
+	const auto bmpIcon = GDIUT::HBITMAPFromHICON(icon32);
+	menuSub.SetItemBitmap(IDM_ICONMENU, bmpIcon);
+
+	return (INT_PTR)TRUE;
+}
+
+INT_PTR CALLBACK TestDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam) {
 	switch (message) {
+	case WM_COMMAND:
+	{
+		const auto uID = LOWORD(wParam); //Control ID or menu ID.
+
+		if (uID == IDOK || uID == IDCANCEL) {
+			::EndDialog(hDlg, LOWORD(wParam));
+			return (INT_PTR)TRUE;
+		}
+
+		if (uID == IDM_CHECKED) {
+			const auto menuSub = m_menu.GetSubMenu(0);
+			menuSub.SetItemCheck(IDM_CHECKED, !menuSub.IsItemChecked(IDM_CHECKED));
+		}
+	}
+	break;
+	case WM_CONTEXTMENU:
+	{
+		POINT pt { .x { LOWORD(lParam) }, .y { HIWORD(lParam) } };
+	//	GDIUT::MENUCOLORS mc { .clrBk = RGB(250, 0, 0) };
+	//	menuClr.SetColors(mc);
+		GDIUT::CMenuColor menuClr(m_menu.GetSubMenu(0));
+		menuClr.TrackPopupMenu(pt.x, pt.y, hDlg);
+	}
+	break;
 	case WM_DPICHANGED:
 		g_DynLayout.Enable(true);
 		g_Link1.WMDPIChanged();
@@ -145,27 +204,8 @@ INT_PTR CALLBACK TestDialogProc(HWND hDlg, UINT message, WPARAM wParam, [[maybe_
 		g_DynLayout.Enable(false);
 		return 0;
 	case WM_INITDIALOG:
-		g_DynLayout.Initialize(hDlg);
-		g_DynLayout.AddItem(IDC_BUTTON_TEST, GDIUT::CDynLayout::MoveNone(), GDIUT::CDynLayout::SizeHorzAndVert(50, 100));
-		g_DynLayout.AddItem(IDC_LIST, GDIUT::CDynLayout::MoveHorz(50), GDIUT::CDynLayout::SizeHorzAndVert(50, 100));
-		g_DynLayout.AddItem(IDOK, GDIUT::CDynLayout::MoveHorzAndVert(100, 100), GDIUT::CDynLayout::SizeNone());
-		g_DynLayout.AddItem(IDCANCEL, GDIUT::CDynLayout::MoveHorzAndVert(100, 100), GDIUT::CDynLayout::SizeNone());
-		g_DynLayout.Enable(true);
-
-		g_Splitter.Initialize(hDlg, IDC_LIST, GDIUT::CSplitter::EAnchorSide::SIDE_LEFT);
-		g_Splitter.SetEdges(30, 400);
-		g_Splitter.AddItem(IDC_BUTTON_TEST, true);
-
-		g_Link1.Initialize(hDlg, IDC_STATIC1, L"https://google.com");
-		g_Link2.Initialize(hDlg, IDC_STATIC2);
-
-		return (INT_PTR)TRUE;
-	case WM_COMMAND:
-		if (LOWORD(wParam) == IDOK || LOWORD(wParam) == IDCANCEL) {
-			::EndDialog(hDlg, LOWORD(wParam));
-			return (INT_PTR)TRUE;
-		}
-		break;
+		return TestDialogWMINITDIALOG(hDlg);
 	}
+
 	return (INT_PTR)FALSE;
 }
