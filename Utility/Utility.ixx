@@ -7,7 +7,6 @@ module;
 #include <Windows.h>
 #include <Shlwapi.h> //SHCreateMemStream.
 #include <commctrl.h>
-#include <d2d1.h>
 #include <d2d1_3.h>
 #include <d3d11_1.h>
 #include <dxgi1_2.h>
@@ -1840,8 +1839,7 @@ export namespace GDIUT { //Windows GDI related stuff.
 		if (pD2DFactory == nullptr) {
 			static const comptr pD2DFactory1 = []() {
 				ID2D1Factory1* pFactory1;
-				::D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, __uuidof(ID2D1Factory1),
-					reinterpret_cast<void**>(&pFactory1));
+				::D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, IID_PPV_ARGS(&pFactory1));
 				assert(pFactory1 != nullptr);
 				return pFactory1;
 				}();
@@ -1876,7 +1874,7 @@ export namespace GDIUT { //Windows GDI related stuff.
 		pDCRT->BindDC(pHDC.get(), &rc);
 
 		comptr<ID2D1DeviceContext5> pD2DDC5; //Windows 10 1703.
-		pDCRT->QueryInterface(__uuidof(ID2D1DeviceContext5), pD2DDC5);
+		pDCRT->QueryInterface(IID_PPV_ARGS(pD2DDC5.get_addr()));
 		assert(pD2DDC5 != nullptr);
 		if (pD2DDC5 == nullptr)
 			return { };
@@ -1923,18 +1921,20 @@ export namespace GDIUT { //Windows GDI related stuff.
 };
 
 export namespace DXUT {
-	template<typename TCom> requires requires(TCom* pTCom) { pTCom->AddRef(); pTCom->Release(); }
+	template<typename TCom> requires requires(TCom* pTCom, const IID& iid, void** ppv) {
+		pTCom->QueryInterface(iid, ppv); pTCom->AddRef(); pTCom->Release();
+	}
 	class comptr {
 	public:
 		comptr() = default;
 		comptr(TCom* pTCom) : m_pTCom(pTCom) { }
 		comptr(const comptr<TCom>& rhs) : m_pTCom(rhs.get()) { safe_addref(); }
 		~comptr() { safe_release(); }
-		operator TCom*()const { return get(); }
-		operator TCom**() { return get_addr(); }
-		operator IUnknown**() { return reinterpret_cast<IUnknown**>(get_addr()); }
-		operator void**() { return reinterpret_cast<void**>(get_addr()); }
-		auto operator->()const->TCom* { return get(); }
+		[[nodiscard]] operator TCom*()const { return get(); }
+		[[nodiscard]] operator TCom**() { return get_addr(); }
+		[[nodiscard]] operator IUnknown**() { return reinterpret_cast<IUnknown**>(get_addr()); }
+		[[nodiscard]] operator void**() { return reinterpret_cast<void**>(get_addr()); }
+		[[nodiscard]] auto operator->()const->TCom* { return get(); }
 		auto operator=(const comptr<TCom>& rhs)->comptr& {
 			if (this != &rhs) {
 				safe_release();	m_pTCom = rhs.get(); safe_addref();
@@ -1953,7 +1953,7 @@ export namespace DXUT {
 		[[nodiscard]] explicit operator bool() { return get() != nullptr; }
 		[[nodiscard]] explicit operator bool()const { return get() != nullptr; }
 		[[nodiscard]] auto get()const -> TCom* { return m_pTCom; }
-		[[nodiscard]] auto get_addr() -> TCom** { return &m_pTCom; }
+		[[nodiscard]] auto get_addr() -> TCom** { assert(m_pTCom == nullptr); return &m_pTCom; }
 		void safe_release() { if (get() != nullptr) { get()->Release(); m_pTCom = nullptr; } }
 		void safe_addref() { if (get() != nullptr) { get()->AddRef(); } }
 	private:
@@ -2026,7 +2026,7 @@ export namespace DXUT {
 		if (pDXGIAdapter == nullptr) { return { }; }
 
 		comptr<IDXGIFactory2> pDXGIFactory2;
-		pDXGIAdapter->GetParent(__uuidof(**(pDXGIFactory2.get_addr())), pDXGIFactory2);
+		pDXGIAdapter->GetParent(IID_PPV_ARGS(pDXGIFactory2.get_addr()));
 		assert(pDXGIFactory2 != nullptr);
 		if (pDXGIFactory2 == nullptr) { return { }; }
 
@@ -2038,7 +2038,7 @@ export namespace DXUT {
 
 	[[nodiscard]] auto D2DCreateFactory(D2D1_FACTORY_TYPE eD2DFT = D2D1_FACTORY_TYPE_SINGLE_THREADED) -> ID2D1Factory1* {
 		ID2D1Factory1* pD2DFactory1;
-		::D2D1CreateFactory(eD2DFT, __uuidof(ID2D1Factory1), reinterpret_cast<void**>(&pD2DFactory1));
+		::D2D1CreateFactory(eD2DFT, IID_PPV_ARGS(&pD2DFactory1));
 		assert(pD2DFactory1 != nullptr);
 		return pD2DFactory1;
 	}
@@ -2062,7 +2062,7 @@ export namespace DXUT {
 		assert(pD2DDC != nullptr);
 		assert(pDXGISwapChain != nullptr);
 		comptr<IDXGISurface> pDXGISurface;
-		pDXGISwapChain->GetBuffer(0, __uuidof(**(pDXGISurface.get_addr())), pDXGISurface);
+		pDXGISwapChain->GetBuffer(0, IID_PPV_ARGS(pDXGISurface.get_addr()));
 		assert(pDXGISurface != nullptr);
 		if (pDXGISurface == nullptr) { return { }; }
 
@@ -2075,7 +2075,7 @@ export namespace DXUT {
 
 	[[nodiscard]] auto DWCreateFactory(DWRITE_FACTORY_TYPE eDWFT = DWRITE_FACTORY_TYPE_SHARED) -> IDWriteFactory3* {
 		IDWriteFactory3* pDWriteFactory3;
-		::DWriteCreateFactory(eDWFT, __uuidof(IDWriteFactory3), reinterpret_cast<IUnknown**>(&pDWriteFactory3));
+		::DWriteCreateFactory(eDWFT, __uuidof(pDWriteFactory3), reinterpret_cast<IUnknown**>(&pDWriteFactory3));
 		assert(pDWriteFactory3 != nullptr);
 		return pDWriteFactory3;
 	}
