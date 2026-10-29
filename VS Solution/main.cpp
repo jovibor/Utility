@@ -1,11 +1,7 @@
 #include "resource.h"
 #include <Windows.h>
 
-#pragma comment(linker,"/manifestdependency:\"type='win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'\"")
-
 import Utility;
-
-#define MAX_LOADSTRING 100
 
 HINSTANCE g_hInstance { };                   // current instance
 LPCWSTR szWindowClass { L"WindowClass" };    // the main window class name
@@ -14,6 +10,7 @@ BOOL InitInstance(HINSTANCE, int);
 LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK About(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK TestDialogProc(HWND, UINT, WPARAM, LPARAM);
+void OnBtnTestClick();
 
 GDIUT::CSplitter g_Splitter;
 GDIUT::CDynLayout g_DynLayout;
@@ -183,6 +180,10 @@ INT_PTR CALLBACK TestDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM l
 			const auto menuSub = m_menu.GetSubMenu(0);
 			menuSub.SetItemCheck(IDM_CHECKED, !menuSub.IsItemChecked(IDM_CHECKED));
 		}
+
+		if (uID == IDC_BUTTON_TEST) {
+			OnBtnTestClick();
+		}
 	}
 	break;
 	case WM_CONTEXTMENU:
@@ -207,4 +208,14 @@ INT_PTR CALLBACK TestDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM l
 	}
 
 	return (INT_PTR)FALSE;
+}
+
+void OnBtnTestClick() {
+	const COMDLG_FILTERSPEC arrFilter[] {
+		{ .pszName { L"Template files (*.json)" }, .pszSpec { L"*.json" } },
+		{ .pszName { L"All files (*.*)" }, .pszSpec { L"*.*" } }
+	};
+	const auto lmb = [](IFileOpenDialog* p) { p->SetOkButtonLabel(L"Add Template"); };
+	const GDIUT::OPENFILEDLG ofd { .spnFilter { arrFilter, 2 }, .pfnOnBeforeShow { lmb } };
+	(void)GDIUT::OpenFileDlg(ofd);
 }
