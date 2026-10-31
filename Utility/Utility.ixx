@@ -2338,14 +2338,20 @@ export namespace GDIUT { //Windows GDI related stuff.
 	* @param spnFilter Array of COMDLG_FILTERSPEC structs, specifying file extension filters.
 	* @param dwFlags Combination of the _FILEOPENDIALOGOPTIONS enum flags.
 	* @param hWndParent Parent window handle.
+	* @param pfnOnBeforeDlg Callback, that is called before the dialog is shown.
+	* @param uzDataBeforeDlg User defined data to pass to the pfnOnBeforeDlg callback.
+	* @param pfnOnAfterDlg Callback, that is called after the dialog is shown.
+	* @param uzDataAfterDlg User defined data to pass to the pfnOnAfterDlg callback.
 	* @returns std::optional of std:vector<std::wstring>, or std::nullopt if Cancel was pressed.
 	*********************************************************************************************/
 	struct OPENFILEDLG {
 		std::span<const COMDLG_FILTERSPEC> spnFilter; //Array of file extension filters.
 		DWORD dwFlags { FOS_FORCEFILESYSTEM | FOS_PATHMUSTEXIST | FOS_FILEMUSTEXIST | FOS_DONTADDTORECENT };
 		HWND hWndParent { }; //Parent window handle.
-		void(*pfnOnBeforeShow)(IFileOpenDialog*) { }; //Callback, before dialog is shown.
-		void(*pfnOnAfterShow)(IFileOpenDialog*) { };  //Callback, after "Open" button is clicked.
+		void(*pfnOnBeforeDlg)(IFileOpenDialog*, uintptr_t) { }; //Callback, before dialog is shown.
+		std::uintptr_t uzDataBeforeDlg { }; //User defined data to pass to the pfnOnBeforeDlg callback.
+		void(*pfnOnAfterDlg)(IFileOpenDialog*, uintptr_t) { };  //Callback, after "Open" button is clicked.
+		std::uintptr_t uzDataAfterDlg { }; //User defined data to pass to the pfnOnAfterDlg callback.
 	};
 
 	/*********************************************************************************************
@@ -2365,16 +2371,16 @@ export namespace GDIUT { //Windows GDI related stuff.
 		upFOD->SetOptions(dwFlagsCurr | ofd.dwFlags);
 		upFOD->SetFileTypes(static_cast<UINT>(ofd.spnFilter.size()), ofd.spnFilter.data());
 
-		if (ofd.pfnOnBeforeShow != nullptr) {
-			ofd.pfnOnBeforeShow(upFOD.get());
+		if (ofd.pfnOnBeforeDlg != nullptr) {
+			ofd.pfnOnBeforeDlg(upFOD.get(), ofd.uzDataBeforeDlg);
 		}
 
 		if (upFOD->Show(ofd.hWndParent) != S_OK) { //Cancel was pressed.
 			return std::nullopt;
 		}
 
-		if (ofd.pfnOnAfterShow != nullptr) {
-			ofd.pfnOnAfterShow(upFOD.get());
+		if (ofd.pfnOnAfterDlg != nullptr) {
+			ofd.pfnOnAfterDlg(upFOD.get(), ofd.uzDataAfterDlg);
 		}
 
 		IShellItemArray* pShIA;

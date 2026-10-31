@@ -215,7 +215,8 @@ void OnBtnTestClick() {
 		{ .pszName { L"Template files (*.json)" }, .pszSpec { L"*.json" } },
 		{ .pszName { L"All files (*.*)" }, .pszSpec { L"*.*" } }
 	};
-	const auto lmb = [](IFileOpenDialog* p) { p->SetOkButtonLabel(L"Add Template"); };
-	const GDIUT::OPENFILEDLG ofd { .spnFilter { arrFilter, 2 }, .pfnOnBeforeShow { lmb } };
+
+	const auto lmb = [](IFileOpenDialog* p, uintptr_t) { p->SetOkButtonLabel(L"Add Template"); };
+	const GDIUT::OPENFILEDLG ofd { .spnFilter { arrFilter, 2 }, .pfnOnBeforeDlg { lmb } };
 	(void)GDIUT::OpenFileDlg(ofd);
 }
