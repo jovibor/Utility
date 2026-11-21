@@ -220,3 +220,54 @@ void OnBtnTestClick() {
 	const GDIUT::OPENFILEDLG ofd { .spnFilter { arrFilter, 2 }, .pfnOnBeforeDlg { lmb } };
 	(void)GDIUT::OpenFileDlg(ofd);
 }
+
+static_assert([] {
+	constexpr RECT r { 0, 0, 10, 10 };
+	constexpr GDIUT::CRect cr1(r);
+	constexpr GDIUT::CRect cr2(nullptr);
+	return r == cr1 && cr1.TopLeft() == GDIUT::CPoint { 0, 0 };
+	}());
+
+static_assert([] {
+	//1. Default & parameterized construction.
+	constexpr GDIUT::CPoint p0;
+	static_assert(p0.x == 0 && p0.y == 0);
+
+	constexpr GDIUT::CPoint p1(10, 20);
+	static_assert(p1.x == 10 && p1.y == 20);
+
+	//2. Converting construction from raw POINT.
+	constexpr POINT raw { 30, 40 };
+	constexpr GDIUT::CPoint p2(raw);
+	static_assert(p2.x == 30 && p2.y == 40);
+
+	//3. C++20 equality & synthesized != (both GDIUT::CPoint and raw POINT, both directions).
+	static_assert(p1 == GDIUT::CPoint { 10, 20 });
+	static_assert(p1 != p2);
+	static_assert(p2 == raw);
+	static_assert(raw == p2);
+	static_assert(p1 != raw);
+	static_assert(raw != p1);
+
+	//4. Arithmetic operators (+ and -).
+	constexpr GDIUT::CPoint sum = p1 + p2;
+	static_assert(sum == GDIUT::CPoint { 40, 60 });
+
+	constexpr GDIUT::CPoint diff = p2 - raw;
+	static_assert(diff == GDIUT::CPoint { 0, 0 });
+
+	//5. Mutating Offset methods.
+	GDIUT::CPoint pMut = p1;
+	pMut.Offset(5, -5);
+	if (pMut != GDIUT::CPoint { 15, 15 }) { return false; }
+
+	pMut.Offset(raw);
+	if (pMut != GDIUT::CPoint { 45, 55 }) { return false; }
+
+	//6. Pointer conversion operators (const and non-const).
+	const POINT* pConstPtr = p1;
+	LPPOINT pMutPtr = pMut;
+	pMutPtr->x = 100;
+
+	return pConstPtr->x == 10 && pMut.x == 100;
+	}());

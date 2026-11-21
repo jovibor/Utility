@@ -78,39 +78,40 @@ export namespace DXUT {
 	}
 	class comptr {
 	public:
-		comptr() = default;
-		comptr(TCom* pTCom) : m_pTCom(pTCom) { }
-		comptr(const comptr<TCom>& rhs) : m_pTCom(rhs.get()) { safe_addref(); }
-		~comptr() { safe_release(); }
-		[[nodiscard]] operator TCom*()const { return get(); }
-		[[nodiscard]] operator TCom**() { return get_addr(); }
-		[[nodiscard]] operator IUnknown**() { return reinterpret_cast<IUnknown**>(get_addr()); }
-		[[nodiscard]] operator void**() { return reinterpret_cast<void**>(get_addr()); }
-		[[nodiscard]] auto operator->()const->TCom* { return get(); }
-		auto operator=(const comptr<TCom>& rhs)->comptr& {
-			if (this != &rhs) {
-				safe_release();	m_pTCom = rhs.get(); safe_addref();
-			}
+		comptr()noexcept = default;
+		comptr(TCom* pTCom)noexcept : m_pTCom(pTCom) { }
+		comptr(const comptr<TCom>& rhs)noexcept : m_pTCom(rhs.get()) { safe_addref(); }
+		comptr(comptr&& rhs) noexcept : m_pTCom(std::exchange(rhs.m_pTCom, nullptr)) { }
+		~comptr()noexcept { safe_release(); }
+		[[nodiscard]] operator TCom*()const noexcept { return get(); }
+		[[nodiscard]] operator TCom**()noexcept { return get_addr(); }
+		[[nodiscard]] operator IUnknown**()noexcept { return reinterpret_cast<IUnknown**>(get_addr()); }
+		[[nodiscard]] operator void**()noexcept { return reinterpret_cast<void**>(get_addr()); }
+		[[nodiscard]] auto operator->()const noexcept->TCom* { return get(); }
+		auto operator=(const comptr<TCom>& rhs)noexcept->comptr& {
+			if (this != &rhs) { rhs.safe_addref(); safe_release(); m_pTCom = rhs.get(); }
 			return *this;
 		}
-		auto operator=(TCom* pRHS)->comptr& {
-			if (get() != pRHS) {
-				if (get() != nullptr) { get()->Release(); }
-				m_pTCom = pRHS;
-			}
+		auto operator=(TCom* pRHS)noexcept->comptr& {
+			if (get() != pRHS) { safe_release(); m_pTCom = pRHS; }
 			return *this;
 		}
-		[[nodiscard]] bool operator==(const comptr<TCom>& rhs)const { return get() == rhs.get(); }
-		[[nodiscard]] bool operator==(const TCom* pRHS)const { return get() == pRHS; }
-		[[nodiscard]] explicit operator bool() { return get() != nullptr; }
-		[[nodiscard]] explicit operator bool()const { return get() != nullptr; }
-		[[nodiscard]] auto get()const -> TCom* { return m_pTCom; }
-		[[nodiscard]] auto get_addr() -> TCom** { assert(m_pTCom == nullptr); return &m_pTCom; }
-		void safe_release() { if (get() != nullptr) { get()->Release(); m_pTCom = nullptr; } }
-		void safe_addref() { if (get() != nullptr) { get()->AddRef(); } }
+		auto operator=(comptr&& rhs)noexcept->comptr& {
+			if (this != &rhs) { safe_release();	m_pTCom = std::exchange(rhs.m_pTCom, nullptr); }
+			return *this;
+		}
+		[[nodiscard]] bool operator==(const comptr<TCom>& rhs)const noexcept { return get() == rhs.get(); }
+		[[nodiscard]] bool operator==(const TCom* pRHS)const noexcept { return get() == pRHS; }
+		[[nodiscard]] explicit operator bool()const noexcept { return get() != nullptr; }
+		[[nodiscard]] bool operator!()const noexcept { return get() == nullptr; }
+		[[nodiscard]] auto get()const noexcept -> TCom* { return m_pTCom; }
+		[[nodiscard]] auto get_addr()noexcept -> TCom** { assert(m_pTCom == nullptr); return &m_pTCom; }
+		void safe_release()noexcept { if (get() != nullptr) { std::exchange(m_pTCom, nullptr)->Release(); } }
+		void safe_addref()const noexcept { if (get() != nullptr) { get()->AddRef(); } }
 	private:
 		TCom* m_pTCom { };
 	};
+
 
 	struct DWFONTINFO {
 		std::wstring        wstrFamilyName;
@@ -581,66 +582,63 @@ export namespace GDIUT { //Windows GDI related stuff.
 
 	class CPoint final : public POINT {
 	public:
-		constexpr CPoint() : POINT { } { }
-		constexpr CPoint(POINT pt) : POINT { pt } { }
-		constexpr CPoint(int x, int y) : POINT { .x { x }, .y { y } } { }
+		constexpr CPoint()noexcept : POINT { } { }
+		constexpr CPoint(POINT pt)noexcept : POINT { pt } { }
+		constexpr CPoint(int x, int y)noexcept : POINT { .x { x }, .y { y } } { }
 		constexpr ~CPoint() = default;
-		constexpr operator LPPOINT() { return this; }
-		constexpr operator const POINT*()const { return this; }
-		[[nodiscard]] constexpr bool operator==(const CPoint& rhs)const { return x == rhs.x && y == rhs.y; };
-		[[nodiscard]] constexpr bool operator==(const POINT& rhs)const { return x == rhs.x && y == rhs.y; }
-		[[nodiscard]] constexpr friend bool operator==(const POINT& lhs, const CPoint& rhs) { return rhs == lhs; }
-		[[nodiscard]] constexpr CPoint operator+(POINT pt)const { return { x + pt.x, y + pt.y }; }
-		[[nodiscard]] constexpr CPoint operator-(POINT pt)const { return { x - pt.x, y - pt.y }; }
-		constexpr void Offset(int iX, int iY) { x += iX; y += iY; }
-		constexpr void Offset(POINT pt) { Offset(pt.x, pt.y); }
+		constexpr operator LPPOINT()noexcept { return this; }
+		constexpr operator const POINT*()const noexcept { return this; }
+		[[nodiscard]] constexpr bool operator==(const CPoint& rhs)const noexcept { return x == rhs.x && y == rhs.y; }
+		[[nodiscard]] constexpr CPoint operator+(POINT pt)const noexcept { return { x + pt.x, y + pt.y }; }
+		[[nodiscard]] constexpr CPoint operator-(POINT pt)const noexcept { return { x - pt.x, y - pt.y }; }
+		constexpr void Offset(int iX, int iY)noexcept { x += iX; y += iY; }
+		constexpr void Offset(POINT pt)noexcept { Offset(pt.x, pt.y); }
 	};
 
 	class CRect final : public RECT {
 	public:
-		constexpr CRect() : RECT { } { }
-		constexpr CRect(int iLeft, int iTop, int iRight, int iBottom) : RECT { .left { iLeft }, .top { iTop },
+		constexpr CRect()noexcept : RECT { } { }
+		constexpr CRect(int iLeft, int iTop, int iRight, int iBottom)noexcept : RECT { .left { iLeft }, .top { iTop },
 			.right { iRight }, .bottom { iBottom } } { }
-		constexpr CRect(const RECT& rc) { *this = rc; }
-		constexpr CRect(LPCRECT pRC) { if (pRC == nullptr) { return; } *this = *pRC; }
-		constexpr CRect(POINT pt, SIZE size) : RECT { .left { pt.x }, .top { pt.y }, .right { pt.x + size.cx },
+		constexpr CRect(const RECT& rc)noexcept : RECT(rc) { }
+		constexpr CRect(LPCRECT pRC)noexcept : CRect() { if (pRC != nullptr) { *this = *pRC; } }
+		constexpr CRect(POINT pt, SIZE size)noexcept : RECT { .left { pt.x }, .top { pt.y }, .right { pt.x + size.cx },
 			.bottom { pt.y + size.cy } } { }
-		constexpr CRect(POINT topLeft, POINT botRight) : RECT { .left { topLeft.x }, .top { topLeft.y },
+		constexpr CRect(POINT topLeft, POINT botRight)noexcept : RECT { .left { topLeft.x }, .top { topLeft.y },
 			.right { botRight.x }, .bottom { botRight.y } } { }
 		constexpr ~CRect() = default;
-		constexpr operator LPRECT() { return this; }
-		constexpr operator LPCRECT()const { return this; }
-		[[nodiscard]] constexpr bool operator==(const CRect& rhs)const {
+		constexpr operator LPRECT()noexcept { return this; }
+		constexpr operator LPCRECT()const noexcept { return this; }
+		[[nodiscard]] constexpr bool operator==(const CRect& rhs)const noexcept {
 			return left == rhs.left && top == rhs.top && right == rhs.right && bottom == rhs.bottom;
-		};
-		[[nodiscard]] constexpr bool operator==(const RECT& rhs)const {
-			return *this == CRect(rhs);
 		}
-		[[nodiscard]] constexpr friend bool operator==(const RECT& lhs, const CRect& rhs) { return rhs == lhs; }
-		constexpr CRect& operator=(const RECT& rhs) {
+		constexpr CRect& operator=(const RECT& rhs)noexcept {
 			left = rhs.left; top = rhs.top; right = rhs.right; bottom = rhs.bottom;
 			return *this;
 		}
-		[[nodiscard]] constexpr auto BottomRight()const -> CPoint { return { { .x { right }, .y { bottom } } }; };
-		constexpr void DeflateRect(int x, int y) { InflateRect(-x, -y); }
-		constexpr void DeflateRect(SIZE size) { InflateRect(-size.cx, -size.cy); }
-		constexpr void DeflateRect(LPCRECT pRC) { left += pRC->left; top += pRC->top; right -= pRC->right; bottom -= pRC->bottom; }
-		constexpr void DeflateRect(int l, int t, int r, int b) { left += l; top += t; right -= r; bottom -= b; }
-		[[nodiscard]] constexpr int Height()const { return bottom - top; }
-		constexpr void InflateRect(int x, int y) { left -= x; top -= y; right += x; bottom += y; };
-		[[nodiscard]] constexpr bool IsRectEmpty()const { return right <= left || bottom <= top; }
-		[[nodiscard]] constexpr bool IsRectNull()const { return left == 0 && right == 0 && top == 0 && bottom == 0; }
-		constexpr void OffsetRect(int x, int y) { left += x; right += x; top += y; bottom += y; }
-		constexpr void OffsetRect(POINT pt) { OffsetRect(pt.x, pt.y); }
-		[[nodiscard]] constexpr bool PtInRect(POINT pt)const {
+		[[nodiscard]] constexpr auto BottomRight()const noexcept -> CPoint { return { right, bottom }; }
+		constexpr void DeflateRect(int x, int y)noexcept { InflateRect(-x, -y); }
+		constexpr void DeflateRect(SIZE size)noexcept { InflateRect(-size.cx, -size.cy); }
+		constexpr void DeflateRect(LPCRECT pRC)noexcept {
+			if (pRC == nullptr) { return; }
+			left += pRC->left; top += pRC->top; right -= pRC->right; bottom -= pRC->bottom;
+		}
+		constexpr void DeflateRect(int l, int t, int r, int b)noexcept { left += l; top += t; right -= r; bottom -= b; }
+		[[nodiscard]] constexpr int Height()const noexcept { return bottom - top; }
+		constexpr void InflateRect(int x, int y)noexcept { left -= x; top -= y; right += x; bottom += y; }
+		[[nodiscard]] constexpr bool IsRectEmpty()const noexcept { return right <= left || bottom <= top; }
+		[[nodiscard]] constexpr bool IsRectNull()const noexcept { return left == 0 && right == 0 && top == 0 && bottom == 0; }
+		constexpr void OffsetRect(int x, int y)noexcept { left += x; right += x; top += y; bottom += y; }
+		constexpr void OffsetRect(POINT pt)noexcept { OffsetRect(pt.x, pt.y); }
+		[[nodiscard]] constexpr bool PtInRect(POINT pt)const noexcept {
 			return pt.x >= left && pt.y >= top && pt.x < right && pt.y < bottom;
 		}
-		constexpr void SetRect(int iLeft, int iTop, int iRight, int iBottom) {
+		constexpr void SetRect(int iLeft, int iTop, int iRight, int iBottom)noexcept {
 			left = iLeft; top = iTop; right = iRight; bottom = iBottom;
 		}
-		constexpr void SetRectEmpty() { left = top = right = bottom = 0; }
-		[[nodiscard]] constexpr auto TopLeft()const -> CPoint { return { { .x { left }, .y { top } } }; };
-		[[nodiscard]] constexpr int Width()const { return right - left; }
+		constexpr void SetRectEmpty()noexcept { left = top = right = bottom = 0; }
+		[[nodiscard]] constexpr auto TopLeft()const noexcept -> CPoint { return { left, top }; }
+		[[nodiscard]] constexpr int Width()const noexcept { return right - left; }
 	};
 
 
