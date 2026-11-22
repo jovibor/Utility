@@ -21,6 +21,7 @@
 #define IDC_STATIC1                     1005
 #define IDC_STATIC2                     1006
 #define IDC_STATIC_COPYRIGHT            1007
+#define IDC_SPLITTER_MAIN               1008
 #define IDM_SEARCH                      32782
 #define IDM_LONGMENU                    32783
 #define IDM_ICONMENU                    32784

@@ -137,8 +137,9 @@ auto CALLBACK TestDialogWMINITDIALOG(HWND hDlg)->INT_PTR {
 	g_DynLayout.AddItem(IDCANCEL, GDIUT::CDynLayout::MoveHorzAndVert(100, 100), GDIUT::CDynLayout::SizeNone());
 	g_DynLayout.Enable(true);
 
-	g_Splitter.Initialize(hDlg, IDC_LIST, GDIUT::CSplitter::EAnchorSide::SIDE_LEFT);
-	g_Splitter.SetEdges(30, 400);
+	g_Splitter.Initialize(hDlg, IDC_LIST, GDIUT::CSplitter::EAnchorSide::SIDE_LEFT, 10, IDC_SPLITTER_MAIN);
+	GDIUT::CWnd wndMain { hDlg };
+	g_Splitter.SetEdges(30, wndMain.GetClientRect().Width() - 30);
 	g_Splitter.AddItem(IDC_BUTTON_TEST, true);
 
 	g_Link1.Initialize(hDlg, IDC_STATIC1, L"https://google.com");
@@ -195,16 +196,35 @@ INT_PTR CALLBACK TestDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM l
 		menuClr.TrackPopupMenu(pt.x, pt.y, hDlg);
 	}
 	break;
-	case WM_DPICHANGED:
+	case WM_DPICHANGED: {
+		GDIUT::CWnd wndMain { hDlg };
+		g_Splitter.SetEdges(30, wndMain.GetClientRect().Width() - 30);
 		g_DynLayout.Enable(true);
 		g_Link1.WMDPIChanged();
 		g_Link2.WMDPIChanged();
 		return 0;
+	}
 	case WM_GETDPISCALEDSIZE:
 		g_DynLayout.Enable(false);
 		return 0;
 	case WM_INITDIALOG:
 		return TestDialogWMINITDIALOG(hDlg);
+	case WM_NOTIFY: {
+		const auto pHDR = reinterpret_cast<NMHDR*>(lParam);
+		if (pHDR->idFrom == IDC_SPLITTER_MAIN) {
+			if (pHDR->code == GDIUT::CSplitter::SPLITTER_MSG_RESIZEEND) {
+				g_DynLayout.Enable(true);
+			}
+		}
+		return 0;
+	}
+	case WM_SIZE: {
+		const auto wWidth = LOWORD(lParam);
+		g_Splitter.SetEdges(30, wWidth - 30);
+		break;
+	}
+	default:
+		break;
 	}
 
 	return (INT_PTR)FALSE;
