@@ -1554,10 +1554,11 @@ export namespace GDIUT { //Windows GDI related stuff.
 	class CWnd {
 	public:
 		CWnd() = default;
-		CWnd(HWND hWnd) { Attach(hWnd); }
+		CWnd(HWND hWnd)noexcept : m_hWnd(hWnd) { }
+		CWnd(const CWnd&) = default;
 		~CWnd() = default;
-		CWnd& operator=(HWND rhs) { Attach(rhs); return *this; };
-		CWnd& operator=(CWnd rhs) { Attach(rhs); return *this; };
+		CWnd& operator=(const CWnd&) = default;
+		CWnd& operator=(HWND rhs) noexcept { Attach(rhs); return *this; }
 		operator HWND()const { return m_hWnd; }
 		[[nodiscard]] bool operator==(CWnd rhs)const { return m_hWnd == rhs.m_hWnd; }
 		[[nodiscard]] bool operator==(HWND rhs)const { return m_hWnd == rhs; }
@@ -1568,16 +1569,14 @@ export namespace GDIUT { //Windows GDI related stuff.
 		[[nodiscard]] auto ChildWindowFromPoint(POINT pt)const -> CWnd {
 			assert(IsWindow()); return ::ChildWindowFromPoint(m_hWnd, pt);
 		}
-		void ClientToScreen(LPPOINT pPT)const { assert(IsWindow()); ::ClientToScreen(m_hWnd, pPT); }
-		void ClientToScreen(LPRECT pRC)const {
-			ClientToScreen(reinterpret_cast<LPPOINT>(pRC)); ClientToScreen((reinterpret_cast<LPPOINT>(pRC)) + 1);
-		}
+		void ClientToScreen(LPPOINT pPT)const { assert(IsWindow() && pPT != nullptr); ::ClientToScreen(m_hWnd, pPT); }
+		void ClientToScreen(LPRECT pRC)const { MapWindowPoints(nullptr, pRC); }
 		void DestroyWindow() { assert(IsWindow()); ::DestroyWindow(m_hWnd); m_hWnd = nullptr; }
 		void Detach() { m_hWnd = nullptr; }
 		[[nodiscard]] auto GetClientRect()const -> CRect {
 			assert(IsWindow()); CRect rc; ::GetClientRect(m_hWnd, rc); return rc;
 		}
-		bool EnableWindow(bool fEnable)const { assert(IsWindow()); return ::EnableWindow(m_hWnd, fEnable); }
+		bool EnableWindow(bool fEnable)const { assert(IsWindow()); return ::EnableWindow(m_hWnd, fEnable) != FALSE; }
 		void EndDialog(INT_PTR iResult)const { assert(IsWindow()); ::EndDialog(m_hWnd, iResult); }
 		[[nodiscard]] int GetCheckedRadioButton(int iIDFirst, int iIDLast)const {
 			assert(IsWindow()); for (int iID = iIDFirst; iID <= iIDLast; ++iID) {
@@ -1591,9 +1590,9 @@ export namespace GDIUT { //Windows GDI related stuff.
 			assert(IsWindow()); return reinterpret_cast<HFONT>(SendMsg(WM_GETFONT, 0, 0));
 		}
 		[[nodiscard]] auto GetHWND()const -> HWND { return m_hWnd; }
-		[[nodiscard]] auto GetLogFont()const -> std::optional<LOGFONTW> {
+		[[nodiscard]] auto GetLogFont() const -> std::optional<LOGFONTW> {
 			if (const auto hFont = GetHFont(); hFont != nullptr) {
-				LOGFONTW lf { }; ::GetObjectW(hFont, sizeof(lf), &lf); return lf;
+				LOGFONTW lf { }; if (::GetObjectW(hFont, sizeof(lf), &lf) == sizeof(lf)) { return lf; }
 			}
 			return std::nullopt;
 		}
@@ -1612,12 +1611,18 @@ export namespace GDIUT { //Windows GDI related stuff.
 		}
 		[[nodiscard]] auto GetWindowStyles()const { return static_cast<DWORD>(GetWindowLongPTR(GWL_STYLE)); }
 		[[nodiscard]] auto GetWindowStylesEx()const { return static_cast<DWORD>(GetWindowLongPTR(GWL_EXSTYLE)); }
-		[[nodiscard]] auto GetWndText()const -> std::wstring {
-			assert(IsWindow()); wchar_t buff[256]; ::GetWindowTextW(m_hWnd, buff, std::size(buff)); return buff;
+		[[nodiscard]] auto GetWndText() const -> std::wstring {
+			assert(IsWindow()); const auto iLen = GetWndTextSize(); if (iLen <= 0) return { };
+			std::wstring text(static_cast<size_t>(iLen) + 1, L'\0');
+			const auto iCopied = ::GetWindowTextW(m_hWnd, text.data(), iLen + 1);
+			text.resize(iCopied > 0 ? static_cast<size_t>(iCopied) : 0);
+			return text;
 		}
-		[[nodiscard]] auto GetWndTextSize()const -> DWORD { assert(IsWindow()); return ::GetWindowTextLengthW(m_hWnd); }
+		[[nodiscard]] auto GetWndTextSize()const -> int { assert(IsWindow()); return ::GetWindowTextLengthW(m_hWnd); }
 		void Invalidate(bool fErase)const { assert(IsWindow()); ::InvalidateRect(m_hWnd, nullptr, fErase); }
-		[[nodiscard]] bool IsDlgMessage(MSG* pMsg)const { return ::IsDialogMessageW(m_hWnd, pMsg); }
+		[[nodiscard]] bool IsDlgMessage(MSG* pMsg)const {
+			assert(IsWindow() && pMsg != nullptr); return ::IsDialogMessageW(m_hWnd, pMsg);
+		}
 		[[nodiscard]] bool IsNull()const { return m_hWnd == nullptr; }
 		[[nodiscard]] bool IsWindow()const { return ::IsWindow(m_hWnd); }
 		[[nodiscard]] bool IsWindowEnabled()const { assert(IsWindow()); return ::IsWindowEnabled(m_hWnd); }
@@ -1627,16 +1632,16 @@ export namespace GDIUT { //Windows GDI related stuff.
 			assert(IsWindow()); ::KillTimer(m_hWnd, uID);
 		}
 		int MapWindowPoints(HWND hWndTo, LPRECT pRC)const {
-			assert(IsWindow()); return ::MapWindowPoints(m_hWnd, hWndTo, reinterpret_cast<LPPOINT>(pRC), 2);
+			assert(IsWindow() && pRC != nullptr); return ::MapWindowPoints(m_hWnd, hWndTo, reinterpret_cast<LPPOINT>(pRC), 2);
 		}
 		bool RedrawWindow(LPCRECT pRC = nullptr, HRGN hrgn = nullptr, UINT uFlags = RDW_INVALIDATE | RDW_UPDATENOW | RDW_ERASE)const {
-			assert(IsWindow()); return static_cast<bool>(::RedrawWindow(m_hWnd, pRC, hrgn, uFlags));
+			assert(IsWindow()); return ::RedrawWindow(m_hWnd, pRC, hrgn, uFlags) != FALSE;
 		}
 		int ReleaseDC(HDC hDC)const { assert(IsWindow()); return ::ReleaseDC(m_hWnd, hDC); }
-		void ScreenToClient(LPPOINT pPT)const { assert(IsWindow()); ::ScreenToClient(m_hWnd, pPT); }
+		void ScreenToClient(LPPOINT pPT)const { assert(IsWindow() && pPT != nullptr); ::ScreenToClient(m_hWnd, pPT); }
 		void ScreenToClient(POINT& pt)const { ScreenToClient(&pt); }
 		void ScreenToClient(LPRECT pRC)const {
-			ScreenToClient(reinterpret_cast<LPPOINT>(pRC)); ScreenToClient(reinterpret_cast<LPPOINT>(pRC) + 1);
+			assert(pRC != nullptr);	assert(IsWindow()); ::MapWindowPoints(nullptr, m_hWnd, reinterpret_cast<LPPOINT>(pRC), 2);
 		}
 		auto SendMsg(UINT uMsg, WPARAM wParam = 0, LPARAM lParam = 0)const -> LRESULT {
 			assert(IsWindow()); return ::SendMessageW(m_hWnd, uMsg, wParam, lParam);
@@ -1661,13 +1666,10 @@ export namespace GDIUT { //Windows GDI related stuff.
 		void SetWindowPos(HWND hWndAfter, int iX, int iY, int iWidth, int iHeight, UINT uFlags)const {
 			assert(IsWindow()); ::SetWindowPos(m_hWnd, hWndAfter, iX, iY, iWidth, iHeight, uFlags);
 		}
-		auto SetWndClassLong(int iIndex, LONG_PTR dwNewLong)const -> ULONG_PTR {
-			assert(IsWindow()); return ::SetClassLongPtrW(m_hWnd, iIndex, dwNewLong);
-		}
 		void SetWndText(LPCWSTR pwszStr)const { assert(IsWindow()); ::SetWindowTextW(m_hWnd, pwszStr); }
 		void SetWndText(const std::wstring& wstr)const { SetWndText(wstr.data()); }
 		void SetRedraw(bool fRedraw)const { assert(IsWindow()); SendMsg(WM_SETREDRAW, fRedraw, 0); }
-		bool ShowWindow(int iCmdShow)const { assert(IsWindow()); return ::ShowWindow(m_hWnd, iCmdShow); }
+		bool ShowWindow(int iCmdShow)const { assert(IsWindow()); return ::ShowWindow(m_hWnd, iCmdShow) != FALSE; }
 		[[nodiscard]] static auto GetFocus() -> CWnd { return ::GetFocus(); }
 	protected:
 		HWND m_hWnd { }; //Windows window handle.
